@@ -11,7 +11,7 @@ const App = () => {
   const chartRef = useRef();
 
   useEffect(() => {
-    fetch('/summary.json')
+    fetch('summary.json')
       .then(res => res.json())
       .then(json => {
         setData(json);
