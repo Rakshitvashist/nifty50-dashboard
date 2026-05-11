@@ -24,35 +24,46 @@ const App = () => {
   useEffect(() => {
     if (!selectedStock || !chartContainerRef.current) return;
 
-    // Cleanup previous chart
-    if (chartRef.current) {
-      chartRef.current.remove();
+    let chart = chartRef.current;
+    let series = chartContainerRef.current.series;
+
+    // Initialize chart only once
+    if (!chart) {
+      chart = createChart(chartContainerRef.current, {
+        layout: {
+          background: { type: ColorType.Solid, color: 'transparent' },
+          textColor: '#a0a0a0',
+          fontFamily: 'Outfit, sans-serif',
+        },
+        grid: {
+          vertLines: { color: 'rgba(255, 255, 255, 0.05)' },
+          horzLines: { color: 'rgba(255, 255, 255, 0.05)' },
+        },
+        width: chartContainerRef.current.clientWidth,
+        height: chartContainerRef.current.clientHeight,
+        timeScale: {
+          borderColor: 'rgba(255, 255, 255, 0.1)',
+        },
+      });
+
+      series = chart.addCandlestickSeries({
+        upColor: '#10b981',
+        downColor: '#f43f5e',
+        borderVisible: false,
+        wickUpColor: '#10b981',
+        wickDownColor: '#f43f5e',
+      });
+
+      chartRef.current = chart;
+      chartContainerRef.current.series = series;
+
+      const handleResize = () => {
+        if (chartContainerRef.current) {
+          chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+        }
+      };
+      window.addEventListener('resize', handleResize);
     }
-
-    const chart = createChart(chartContainerRef.current, {
-      layout: {
-        background: { type: ColorType.Solid, color: 'transparent' },
-        textColor: '#a0a0a0',
-        fontFamily: 'Outfit, sans-serif',
-      },
-      grid: {
-        vertLines: { color: 'rgba(255, 255, 255, 0.05)' },
-        horzLines: { color: 'rgba(255, 255, 255, 0.05)' },
-      },
-      width: chartContainerRef.current.clientWidth,
-      height: chartContainerRef.current.clientHeight,
-      timeScale: {
-        borderColor: 'rgba(255, 255, 255, 0.1)',
-      },
-    });
-
-    const candlestickSeries = chart.addCandlestickSeries({
-      upColor: '#10b981',
-      downColor: '#f43f5e',
-      borderVisible: false,
-      wickUpColor: '#10b981',
-      wickDownColor: '#f43f5e',
-    });
 
     const formattedData = selectedStock.history.map(item => ({
       time: item.time,
@@ -62,16 +73,10 @@ const App = () => {
       close: item.close,
     }));
 
-    candlestickSeries.setData(formattedData);
+    // Update data without destroying the chart
+    series.setData(formattedData);
     chart.timeScale().fitContent();
-    chartRef.current = chart;
 
-    const handleResize = () => {
-      chart.applyOptions({ width: chartContainerRef.current.clientWidth });
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
   }, [selectedStock]);
 
   if (loading) {
@@ -135,15 +140,13 @@ const App = () => {
 
       {/* Main Content */}
       <main className="main-content">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={selectedStock?.symbol}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.4 }}
-            className="w-full flex flex-col gap-6"
-          >
+        <motion.div
+          key={selectedStock?.symbol}
+          initial={{ opacity: 0.5, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="w-full flex flex-col gap-6"
+        >
             {/* Header Stats */}
             <div className="header-stats">
               <div className="glass-panel stat-card">
@@ -209,7 +212,6 @@ const App = () => {
                </div>
             </div>
           </motion.div>
-        </AnimatePresence>
       </main>
       
       <style>{`
