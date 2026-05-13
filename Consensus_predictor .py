@@ -15,6 +15,12 @@ class ConsensusPredictor:
     """
     Multi-indicator consensus voting system
     Predicts direction, confidence, and price targets
+    
+    IMPROVEMENTS IMPLEMENTED:
+    1. Market Regime Awareness (Trending vs Ranging)
+    2. Time-Decay Indicator Quality (Recent performance weights)
+    3. Category Grouping (Prevents indicator redundancy)
+    4. Meta-Ensemble Voting (Non-linear combination)
     """
     
     def __init__(self, voting_threshold: float = 0.15, confidence_levels: Dict = None):
@@ -30,72 +36,124 @@ class ConsensusPredictor:
             'medium': 0.2,
             'low': 0.0
         }
+        # Categories for grouping
+        self.categories = {
+            'trend': ['ma', 'ema', 'sma', 'supertrend', 'ichimoku', 'adx', 'psar'],
+            'momentum': ['rsi', 'macd', 'stoch', 'cci', 'roc', 'williams', 'mfi'],
+            'volatility': ['bb', 'atr', 'std', 'keltner', 'bollinger', 'zscore'],
+            'volume': ['obv', 'surge', 'vwap', 'emv', 'mfi_vol'],
+            'price_action': ['above', 'below', 'cross', 'candle', 'pivot']
+        }
         
+    def _detect_regime(self, current_price: pd.Series, adx: pd.Series = None) -> pd.Series:
+        """
+        Detect market regime: 1 (Trending), 0 (Ranging/Sideways)
+        """
+        if adx is not None:
+            # ADX > 25 usually indicates a strong trend
+            return (adx > 25).astype(int)
+        
+        # Fallback: Use price distance from a 20-day MA
+        ma20 = current_price.rolling(20).mean()
+        std20 = current_price.rolling(20).std()
+        dist = np.abs(current_price - ma20) / (std20 + 1e-10)
+        return (dist > 1.5).astype(int)
+
+    def _group_indicators(self, columns: list) -> Dict[str, list]:
+        """Group indicator columns by their category"""
+        grouped = {cat: [] for cat in self.categories}
+        grouped['other'] = []
+        
+        for col in columns:
+            found = False
+            col_lower = col.lower()
+            for cat, keywords in self.categories.items():
+                if any(k in col_lower for k in keywords):
+                    grouped[cat].append(col)
+                    found = True
+                    break
+            if not found:
+                grouped['other'].append(col)
+        return grouped
+
     def predict(self, 
                 indicators_df: pd.DataFrame, 
                 quality_df: pd.DataFrame,
                 current_price: pd.Series,
-                atr: pd.Series = None) -> pd.DataFrame:
+                atr: pd.Series = None,
+                adx: pd.Series = None) -> pd.DataFrame:
         """
-        Generate predictions using consensus voting
-        
-        Args:
-            indicators_df: DataFrame with indicator signals (-1 to +1)
-            quality_df: DataFrame with quality scores (0 to 1)
-            current_price: Series with current prices
-            atr: Average True Range for price target calculation
-            
-        Returns:
-            DataFrame with predictions:
-                - signal: -1 (sell), 0 (hold), 1 (buy)
-                - confidence: 0-1 score
-                - consensus_score: weighted average of all indicators
-                - bullish_count: number of bullish indicators
-                - bearish_count: number of bearish indicators
-                - price_target_upper: upper price target
-                - price_target_lower: lower price target
-                - expected_move: expected price move percentage
+        Generate predictions using advanced Meta-Ensemble consensus
         """
-        print("Calculating consensus predictions...")
+        print("Calculating advanced consensus predictions...")
         
-        # Replace NaN with 0 (neutral)
+        # 1. Regime Detection
+        regime = self._detect_regime(current_price, adx)
+        
+        # 2. Category Grouping
+        grouped_cols = self._group_indicators(indicators_df.columns)
+        
+        # 3. Handle data cleaning
         indicators_clean = indicators_df.fillna(0)
         quality_clean = quality_df.fillna(0.5)
         
-        # Calculate weighted consensus score
-        # Formula: sum(indicator * quality) / sum(quality)
-        weighted_sum = (indicators_clean * quality_clean).sum(axis=1)
-        quality_sum = quality_clean.sum(axis=1)
-        consensus_score = weighted_sum / (quality_sum + 1e-10)
+        # 4. Meta-Ensemble: Calculate consensus per category
+        category_scores = {}
+        for cat, cols in grouped_cols.items():
+            if not cols:
+                continue
+            
+            # Weighted average for this category
+            cat_ind = indicators_clean[cols]
+            cat_qual = quality_clean[cols]
+            
+            # Contextual weighting: Trend indicators get +20% weight in trending regime
+            if cat == 'trend':
+                cat_qual = cat_qual.multiply(1 + 0.2 * regime, axis=0)
+            elif cat == 'momentum' and regime.iloc[-1] == 0:
+                cat_qual = cat_qual.multiply(1.2, axis=0) # Momentum better in ranges
+            
+            w_sum = (cat_ind * cat_qual).sum(axis=1)
+            q_sum = cat_qual.sum(axis=1)
+            category_scores[cat] = w_sum / (q_sum + 1e-10)
+            
+        # 5. Combine Category Scores (Meta-Ensemble)
+        # Instead of 400 indicators, we now combine ~6 category "super-indicators"
+        cat_df = pd.DataFrame(category_scores)
         
-        # Count bullish/bearish signals
+        # Final consensus is a weighted average of categories
+        # Give slightly more weight to Trend and Price Action
+        cat_weights = {
+            'trend': 1.2,
+            'price_action': 1.1,
+            'momentum': 1.0,
+            'volatility': 0.8,
+            'volume': 0.9,
+            'other': 0.7
+        }
+        
+        final_w_sum = sum(cat_df[cat] * cat_weights.get(cat, 1.0) for cat in cat_df.columns)
+        final_q_sum = sum(np.ones(len(cat_df)) * cat_weights.get(cat, 1.0) for cat in cat_df.columns)
+        consensus_score = final_w_sum / final_q_sum
+        
+        # 6. Generate final signals
+        signals = np.zeros(len(consensus_score))
+        signals[consensus_score > self.voting_threshold] = 1
+        signals[consensus_score < -self.voting_threshold] = -1
+        
+        # 7. Confidence & Counts
+        confidence = np.abs(consensus_score)
         bullish_count = (indicators_clean > 0).sum(axis=1)
         bearish_count = (indicators_clean < 0).sum(axis=1)
-        neutral_count = (indicators_clean == 0).sum(axis=1)
         
-        # Generate signals based on consensus
-        signals = np.zeros(len(consensus_score))
-        signals[consensus_score > self.voting_threshold] = 1   # Buy
-        signals[consensus_score < -self.voting_threshold] = -1  # Sell
-        
-        # Calculate confidence
-        confidence = np.abs(consensus_score)
-        
-        # Classify confidence levels
-        confidence_level = pd.cut(confidence, 
-                                 bins=[0, 0.2, 0.4, 0.6, 1.0],
-                                 labels=['low', 'medium', 'high', 'very_high'])
-        
-        # Calculate price targets
+        # Target calculation (enhanced with regime)
         if atr is not None:
-            # Use ATR for dynamic price targets
-            expected_move_pct = (atr / current_price) * np.abs(consensus_score)
+            # In trending markets, targets can be further away
+            multiplier = 1.0 + (0.5 * regime)
+            expected_move_pct = (atr / current_price) * confidence * multiplier
         else:
-            # Use historical volatility
-            returns = current_price.pct_change()
-            rolling_std = returns.rolling(20).std()
-            expected_move_pct = rolling_std * np.abs(consensus_score) * 2
-        
+            expected_move_pct = current_price.pct_change().rolling(20).std() * confidence * 2
+            
         price_target_upper = current_price * (1 + expected_move_pct)
         price_target_lower = current_price * (1 - expected_move_pct)
         
@@ -103,132 +161,57 @@ class ConsensusPredictor:
         price_target_upper = np.where(signals >= 0, price_target_upper, current_price)
         price_target_lower = np.where(signals <= 0, price_target_lower, current_price)
         
-        # Create results DataFrame
         results = pd.DataFrame({
             'signal': signals,
             'confidence': confidence,
-            'confidence_level': confidence_level,
             'consensus_score': consensus_score,
-            'bullish_count': bullish_count,
-            'bearish_count': bearish_count,
-            'neutral_count': neutral_count,
-            'bullish_pct': bullish_count / indicators_clean.shape[1] * 100,
-            'bearish_pct': bearish_count / indicators_clean.shape[1] * 100,
+            'regime': regime,
+            'bullish_pct': (bullish_count / indicators_clean.shape[1]) * 100,
+            'bearish_pct': (bearish_count / indicators_clean.shape[1]) * 100,
             'price_target_upper': price_target_upper,
             'price_target_lower': price_target_lower,
             'expected_move_pct': expected_move_pct * 100,
             'current_price': current_price
         }, index=indicators_df.index)
         
-        print(f"✓ Generated predictions for {len(results)} periods")
-        print(f"  Buy signals: {(signals == 1).sum()}")
-        print(f"  Sell signals: {(signals == -1).sum()}")
-        print(f"  Hold signals: {(signals == 0).sum()}")
-        
         return results
-    
-    def get_signal_breakdown(self, 
-                            indicators_df: pd.DataFrame,
-                            quality_df: pd.DataFrame,
-                            index: int = -1) -> pd.DataFrame:
-        """
-        Get detailed breakdown of indicators for a specific date
-        
-        Args:
-            indicators_df: DataFrame with indicator signals
-            quality_df: DataFrame with quality scores
-            index: Index position (default: -1 for most recent)
-            
-        Returns:
-            DataFrame with indicator breakdown sorted by contribution
-        """
-        indicators_clean = indicators_df.fillna(0)
-        quality_clean = quality_df.fillna(0.5)
-        
-        # Get specific row
-        indicator_values = indicators_clean.iloc[index]
-        quality_values = quality_clean.iloc[index]
-        
-        # Calculate weighted contribution
-        contribution = indicator_values * quality_values
-        
-        breakdown = pd.DataFrame({
-            'indicator': indicator_values.index,
-            'signal': indicator_values.values,
-            'quality': quality_values.values,
-            'contribution': contribution.values,
-            'direction': ['BULLISH' if x > 0 else 'BEARISH' if x < 0 else 'NEUTRAL' 
-                         for x in indicator_values.values]
-        })
-        
-        # Sort by absolute contribution
-        breakdown['abs_contribution'] = np.abs(breakdown['contribution'])
-        breakdown = breakdown.sort_values('abs_contribution', ascending=False)
-        breakdown = breakdown.drop('abs_contribution', axis=1)
-        
-        return breakdown
-    
+
     def calculate_indicator_performance(self,
                                        indicators_df: pd.DataFrame,
                                        future_returns: pd.Series,
-                                       lookback: int = 5) -> pd.DataFrame:
+                                       lookback: int = 20,
+                                       decay: float = 0.95) -> pd.DataFrame:
         """
-        Calculate historical performance of each indicator
-        
-        Args:
-            indicators_df: DataFrame with indicator signals
-            future_returns: Series with future returns (shifted)
-            lookback: Days to look ahead for returns
-            
-        Returns:
-            DataFrame with performance metrics for each indicator
+        Calculate performance with TIME-DECAY (Recent signals matter more)
         """
-        print(f"Calculating indicator performance (lookback={lookback} days)...")
-        
+        print(f"Calculating time-decayed performance (decay={decay})...")
         performance = []
         
+        # Weights for time decay
+        weights = np.array([decay**i for i in range(len(future_returns))])[::-1]
+        
         for col in indicators_df.columns:
-            signal = indicators_df[col]
+            sig = indicators_df[col].fillna(0)
+            ret = future_returns.fillna(0)
             
-            # Remove NaN
-            valid_mask = ~(signal.isna() | future_returns.isna())
-            signal_clean = signal[valid_mask]
-            returns_clean = future_returns[valid_mask]
+            # Directional alignment
+            correct = (np.sign(sig) == np.sign(ret)).astype(float)
             
-            if len(signal_clean) < 10:
-                continue
+            # Weighted accuracy
+            weighted_acc = np.average(correct, weights=weights)
             
-            # Calculate correlation with future returns
-            correlation = np.corrcoef(signal_clean, returns_clean)[0, 1] if len(signal_clean) > 1 else 0
-            
-            # Calculate directional accuracy
-            signal_direction = np.sign(signal_clean)
-            return_direction = np.sign(returns_clean)
-            accuracy = (signal_direction == return_direction).mean()
-            
-            # Calculate average return when signal is bullish/bearish
-            bullish_return = returns_clean[signal_clean > 0.5].mean() if (signal_clean > 0.5).any() else 0
-            bearish_return = returns_clean[signal_clean < -0.5].mean() if (signal_clean < -0.5).any() else 0
-            
-            # Signal frequency
-            signal_frequency = (np.abs(signal_clean) > 0.5).mean()
+            # Weighted correlation (approx)
+            w_corr = (sig * ret * weights).sum() / (weights.sum() + 1e-10)
             
             performance.append({
                 'indicator': col,
-                'correlation': correlation,
-                'accuracy': accuracy,
-                'bullish_return_avg': bullish_return,
-                'bearish_return_avg': bearish_return,
-                'signal_frequency': signal_frequency,
-                'sharpe_proxy': correlation * np.sqrt(signal_frequency)  # Weighted by frequency
+                'accuracy': weighted_acc,
+                'contribution': w_corr,
+                'sharpe_proxy': weighted_acc * np.abs(w_corr)
             })
-        
-        performance_df = pd.DataFrame(performance)
-        performance_df = performance_df.sort_values('sharpe_proxy', ascending=False)
-        
-        print(f"✓ Calculated performance for {len(performance_df)} indicators")
-        
-        return performance_df
+            
+        return pd.DataFrame(performance).sort_values('sharpe_proxy', ascending=False)
+
     
     def get_adaptive_weights(self,
                             performance_df: pd.DataFrame,

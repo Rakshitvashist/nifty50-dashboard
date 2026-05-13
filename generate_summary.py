@@ -90,16 +90,33 @@ def generate_summary():
             raw_rsi      = talib.RSI(C, timeperiod=14)[-1]
             _, _, macdhist = talib.MACD(C, 12, 26, 9)
             raw_macd     = macdhist[-1]
-            raw_adx      = talib.ADX(H, L, C, timeperiod=14)[-1]
+            
+            adx_series = pd.Series(talib.ADX(H, L, C, timeperiod=14), index=df.index)
+            raw_adx    = adx_series.iloc[-1]
+            
             bb_up, bb_mid, bb_lo = talib.BBANDS(C, timeperiod=20)
             raw_bb_pos   = (C[-1] - bb_lo[-1]) / (bb_up[-1] - bb_lo[-1] + 1e-10)
             raw_atr      = talib.ATR(H, L, C, timeperiod=14)[-1]
 
             atr_series = pd.Series(talib.ATR(H, L, C, timeperiod=14), index=df.index)
 
+            # ── Adaptive Quality Weights ─────────────────────────────────────
+            # Calculate how each indicator performed over the last 100 days
+            # and adjust weights dynamically
+            lookback = 100
+            if len(df) > lookback:
+                # 5-day future returns for performance tracking
+                future_rets = price_series.pct_change(5).shift(-5)
+                
+                perf_df = predictor.calculate_indicator_performance(
+                    indicators_df.iloc[-lookback-10:-10], 
+                    future_rets.iloc[-lookback-10:-10]
+                )
+                quality_df = predictor.get_adaptive_weights(perf_df, quality_df)
+
             # ── Consensus predictor ──────────────────────────────────────────
             predictions = predictor.predict(
-                indicators_df, quality_df, price_series, atr_series
+                indicators_df, quality_df, price_series, atr_series, adx_series
             )
 
             # ── Hit-ratio backtester ─────────────────────────────────────────
