@@ -118,6 +118,86 @@ class HitRatioBacktester:
         ].dropna()
 
 
+    def backtest_targets(self, 
+                         predictions_df: pd.DataFrame, 
+                         high_series: pd.Series, 
+                         low_series: pd.Series,
+                         look_ahead: int = 10) -> dict:
+        """
+        Analyze Target vs SL hits.
+        Checks if Target 1/2/3 was hit before the SL over the look_ahead period.
+        """
+        actionable = predictions_df[predictions_df['signal'] != 0].copy()
+        if len(actionable) == 0:
+            return {"t1_hit_rate": 0, "t2_hit_rate": 0, "t3_hit_rate": 0, "sl_hit_rate": 0}
+
+        results = {
+            't1_hits': 0, 't2_hits': 0, 't3_hits': 0, 'sl_hits': 0, 'total': 0
+        }
+
+        for idx, row in actionable.iterrows():
+            sig = row['signal']
+            t1, t2, t3 = row['target_1'], row['target_2'], row['target_3']
+            sl = row['stop_loss']
+            
+            # Get data for the next 'look_ahead' days
+            try:
+                start_loc = high_series.index.get_loc(idx)
+                fwd_high = high_series.iloc[start_loc+1 : start_loc+look_ahead+1]
+                fwd_low = low_series.iloc[start_loc+1 : start_loc+look_ahead+1]
+            except (KeyError, IndexError):
+                continue
+                
+            if len(fwd_high) == 0:
+                continue
+                
+            results['total'] += 1
+            
+            if sig == 1: # LONG
+                # Find first day where SL hit or T1 hit
+                sl_hit_idx = np.where(fwd_low <= sl)[0]
+                t1_hit_idx = np.where(fwd_high >= t1)[0]
+                t2_hit_idx = np.where(fwd_high >= t2)[0]
+                t3_hit_idx = np.where(fwd_high >= t3)[0]
+                
+                # Check if T1 was hit before SL
+                first_sl = sl_hit_idx[0] if len(sl_hit_idx) > 0 else 999
+                if len(t1_hit_idx) > 0 and t1_hit_idx[0] < first_sl:
+                    results['t1_hits'] += 1
+                if len(t2_hit_idx) > 0 and t2_hit_idx[0] < first_sl:
+                    results['t2_hits'] += 1
+                if len(t3_hit_idx) > 0 and t3_hit_idx[0] < first_sl:
+                    results['t3_hits'] += 1
+                if len(sl_hit_idx) > 0 and (len(t1_hit_idx) == 0 or first_sl < t1_hit_idx[0]):
+                    results['sl_hits'] += 1
+                    
+            elif sig == -1: # SHORT
+                sl_hit_idx = np.where(fwd_high >= sl)[0]
+                t1_hit_idx = np.where(fwd_low <= t1)[0]
+                t2_hit_idx = np.where(fwd_low <= t2)[0]
+                t3_hit_idx = np.where(fwd_low <= t3)[0]
+                
+                first_sl = sl_hit_idx[0] if len(sl_hit_idx) > 0 else 999
+                if len(t1_hit_idx) > 0 and t1_hit_idx[0] < first_sl:
+                    results['t1_hits'] += 1
+                if len(t2_hit_idx) > 0 and t2_hit_idx[0] < first_sl:
+                    results['t2_hits'] += 1
+                if len(t3_hit_idx) > 0 and t3_hit_idx[0] < first_sl:
+                    results['t3_hits'] += 1
+                if len(sl_hit_idx) > 0 and (len(t1_hit_idx) == 0 or first_sl < t1_hit_idx[0]):
+                    results['sl_hits'] += 1
+
+        # Calculate final rates
+        total = results['total'] if results['total'] > 0 else 1
+        return {
+            "t1_hit_rate": round(results['t1_hits'] / total, 4),
+            "t2_hit_rate": round(results['t2_hits'] / total, 4),
+            "t3_hit_rate": round(results['t3_hits'] / total, 4),
+            "sl_hit_rate": round(results['sl_hits'] / total, 4),
+            "total_signals": results['total']
+        }
+
+
 if __name__ == "__main__":
     print("HitRatioBacktester - Ready for use")
     print("""

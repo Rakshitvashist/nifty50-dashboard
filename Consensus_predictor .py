@@ -150,16 +150,28 @@ class ConsensusPredictor:
         if atr is not None:
             # In trending markets, targets can be further away
             multiplier = 1.0 + (0.5 * regime)
+            
+            # Historical Targets for Backtesting
+            # Target 1: 1.5x ATR, Target 2: 3x ATR, Target 3: 5x ATR
+            t1_dist = atr * 1.5 * multiplier
+            t2_dist = atr * 3.0 * multiplier
+            t3_dist = atr * 5.0 * multiplier
+            sl_dist = atr * 1.0 # 1x ATR SL
+            
             expected_move_pct = (atr / current_price) * confidence * multiplier
         else:
-            expected_move_pct = current_price.pct_change().rolling(20).std() * confidence * 2
+            vol = current_price.pct_change().rolling(20).std()
+            t1_dist = current_price * vol * 2
+            t2_dist = current_price * vol * 4
+            t3_dist = current_price * vol * 6
+            sl_dist = current_price * vol * 1.5
+            expected_move_pct = vol * confidence * 2
             
-        price_target_upper = current_price * (1 + expected_move_pct)
-        price_target_lower = current_price * (1 - expected_move_pct)
-        
-        # Adjust targets based on signal direction
-        price_target_upper = np.where(signals >= 0, price_target_upper, current_price)
-        price_target_lower = np.where(signals <= 0, price_target_lower, current_price)
+        # Directional Targets
+        target_1 = np.where(signals >= 0, current_price + t1_dist, current_price - t1_dist)
+        target_2 = np.where(signals >= 0, current_price + t2_dist, current_price - t2_dist)
+        target_3 = np.where(signals >= 0, current_price + t3_dist, current_price - t3_dist)
+        stop_loss = np.where(signals >= 0, current_price - sl_dist, current_price + sl_dist)
         
         results = pd.DataFrame({
             'signal': signals,
@@ -168,8 +180,10 @@ class ConsensusPredictor:
             'regime': regime,
             'bullish_pct': (bullish_count / indicators_clean.shape[1]) * 100,
             'bearish_pct': (bearish_count / indicators_clean.shape[1]) * 100,
-            'price_target_upper': price_target_upper,
-            'price_target_lower': price_target_lower,
+            'target_1': target_1,
+            'target_2': target_2,
+            'target_3': target_3,
+            'stop_loss': stop_loss,
             'expected_move_pct': expected_move_pct * 100,
             'current_price': current_price
         }, index=indicators_df.index)

@@ -121,6 +121,14 @@ def generate_summary():
 
             # ── Hit-ratio backtester ─────────────────────────────────────────
             hit_stats = backtester.backtest(predictions, price_series)
+            
+            # Target Hit Analysis (New)
+            target_stats = backtester.backtest_targets(
+                predictions, 
+                df['high'].astype(float), 
+                df['low'].astype(float),
+                look_ahead=10
+            )
 
             # ── Latest values ────────────────────────────────────────────────
             latest_pred     = predictions.iloc[-1]
@@ -147,7 +155,6 @@ def generate_summary():
             bearish_pct = _safe(latest_pred.get('bearish_pct', 50))
             confidence  = _safe(latest_pred.get('confidence', 0))
             signal_raw  = int(latest_pred.get('signal', 0))
-            conf_level  = str(latest_pred.get('confidence_level', 'low'))
             exp_move    = _safe(latest_pred.get('expected_move_pct', 0))
 
             # ── Chart data ───────────────────────────────────────────────────
@@ -193,7 +200,6 @@ def generate_summary():
                     "signal":           signal_raw,
                     "direction":        targets.get('direction', 'LONG'),
                     "confidence":       round(confidence, 4),
-                    "confidence_level": conf_level,
                     "consensus_score":  round(latest_consensus, 4),
                     "bullish_pct":      round(bullish_pct, 2),
                     "bearish_pct":      round(bearish_pct, 2),
@@ -218,6 +224,13 @@ def generate_summary():
                     "signal_count_5d":         hit_stats.get('signal_count_5d', 0),
                     "win_count_5d":            hit_stats.get('win_count_5d', 0),
                     "avg_directional_return":  hit_stats.get('avg_directional_return_pct', 0.0),
+                    
+                    # Target Hits (New)
+                    "t1_hit_rate":             target_stats.get('t1_hit_rate', 0),
+                    "t2_hit_rate":             target_stats.get('t2_hit_rate', 0),
+                    "t3_hit_rate":             target_stats.get('t3_hit_rate', 0),
+                    "sl_hit_rate":             target_stats.get('sl_hit_rate', 0),
+                    "total_signals":           target_stats.get('total_signals', 0)
                 },
 
                 "history": chart_data
