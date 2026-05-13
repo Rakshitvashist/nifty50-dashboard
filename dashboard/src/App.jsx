@@ -315,6 +315,46 @@ const App = () => {
               </div>
             </div>
 
+            {/* ── Target Analytics (New) ── */}
+            <div style={{ marginTop: 24, borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 20 }}>
+              <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Target size={14} color="var(--accent-gold)" /> Target vs SL Analytics (10-Day Window)
+              </div>
+              <div className="target-analytics-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16 }}>
+                <div className="target-stat-card glass-panel" style={{ padding: '12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}>Target 1 Hits</div>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--accent-emerald)' }}>{pct(hr.t1_hit_rate)}</div>
+                  <div className="mini-progress" style={{ height: 4, background: 'rgba(255,255,255,0.05)', borderRadius: 2, marginTop: 8 }}>
+                    <div style={{ height: '100%', width: pct(hr.t1_hit_rate), background: 'var(--accent-emerald)', borderRadius: 2 }} />
+                  </div>
+                </div>
+                <div className="target-stat-card glass-panel" style={{ padding: '12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}>Target 2 Hits</div>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--accent-gold)' }}>{pct(hr.t2_hit_rate)}</div>
+                  <div className="mini-progress" style={{ height: 4, background: 'rgba(255,255,255,0.05)', borderRadius: 2, marginTop: 8 }}>
+                    <div style={{ height: '100%', width: pct(hr.t2_hit_rate), background: 'var(--accent-gold)', borderRadius: 2 }} />
+                  </div>
+                </div>
+                <div className="target-stat-card glass-panel" style={{ padding: '12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}>Target 3 Hits</div>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--accent-rose)' }}>{pct(hr.t3_hit_rate)}</div>
+                  <div className="mini-progress" style={{ height: 4, background: 'rgba(255,255,255,0.05)', borderRadius: 2, marginTop: 8 }}>
+                    <div style={{ height: '100%', width: pct(hr.t3_hit_rate), background: 'var(--accent-rose)', borderRadius: 2 }} />
+                  </div>
+                </div>
+                <div className="target-stat-card glass-panel" style={{ padding: '12px', textAlign: 'center', border: '1px solid rgba(244, 63, 94, 0.2)' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}>SL Hit Rate</div>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--accent-rose)' }}>{pct(hr.sl_hit_rate)}</div>
+                  <div className="mini-progress" style={{ height: 4, background: 'rgba(255,255,255,0.05)', borderRadius: 2, marginTop: 8 }}>
+                    <div style={{ height: '100%', width: pct(hr.sl_hit_rate), background: 'var(--accent-rose)', borderRadius: 2 }} />
+                  </div>
+                </div>
+              </div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: 12, fontStyle: 'italic' }}>
+                * Analyzed {hr.total_signals} historical signals for {s?.symbol}. Target hit rates measured before SL hit.
+              </div>
+            </div>
+
             <div style={{ marginTop:16, padding:'12px 16px', background:'rgba(255,255,255,0.02)', borderRadius:10, fontSize:'0.82rem', color:'var(--text-secondary)' }}>
               Avg directional return on signal:&nbsp;
               <span style={{ color: hr.avg_directional_return >= 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)', fontWeight:700 }}>
