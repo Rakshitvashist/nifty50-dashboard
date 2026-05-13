@@ -179,36 +179,88 @@ const App = () => {
               <div ref={chartContainerRef} style={{ width: '100%', height: 'calc(100% - 40px)' }} />
             </div>
 
-            {/* Indicator Details */}
-            <div className="indicator-grid">
-               <div className="glass-panel p-6 flex flex-col items-center justify-center gap-2">
-                  <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Trend Direction</span>
-                  {selectedStock?.consensus > 0 ? <TrendingUp color="#10b981" size={32} /> : <TrendingDown color="#f43f5e" size={32} />}
-                  <span style={{ fontWeight: 600 }}>{selectedStock?.consensus > 0 ? 'Bullish' : 'Bearish'}</span>
-               </div>
-               <div className="glass-panel p-6 flex flex-col items-center justify-center gap-2">
-                  <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>MACD Histogram</span>
-                  <div style={{ height: '40px', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <div style={{ 
-                      width: '60%', 
-                      height: '8px', 
-                      background: 'rgba(255,255,255,0.1)', 
-                      borderRadius: '4px',
-                      position: 'relative'
-                    }}>
-                      <div style={{ 
-                        position: 'absolute',
-                        left: '50%',
-                        width: Math.abs(selectedStock?.indicators.macd * 10) + '%',
-                        height: '100%',
-                        background: selectedStock?.indicators.macd > 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)',
-                        transform: selectedStock?.indicators.macd > 0 ? '' : 'translateX(-100%)',
-                        borderRadius: '4px'
-                      }} />
+            {/* Indicator Analysis Section */}
+            <div className="glass-panel p-6">
+              <div className="flex items-center gap-2 mb-6">
+                <Shield size={20} className="text-gold" />
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Technical Indicator Analysis</h2>
+              </div>
+              
+              <div className="indicator-details-grid">
+                {[
+                  {
+                    name: 'RSI (14)',
+                    value: selectedStock?.indicators.rsi.toFixed(2),
+                    meaning: selectedStock?.indicators.rsi > 70 ? 'Overbought' : selectedStock?.indicators.rsi < 30 ? 'Oversold' : 'Neutral',
+                    desc: 'Relative Strength Index measures the speed and change of price movements.',
+                    color: selectedStock?.indicators.rsi > 70 ? 'var(--accent-rose)' : selectedStock?.indicators.rsi < 30 ? 'var(--accent-emerald)' : 'var(--text-secondary)'
+                  },
+                  {
+                    name: 'MACD Hist',
+                    value: selectedStock?.indicators.macd.toFixed(4),
+                    meaning: selectedStock?.indicators.macd > 0 ? 'Bullish' : 'Bearish',
+                    desc: 'Moving Average Convergence Divergence shows relationship between two moving averages.',
+                    color: selectedStock?.indicators.macd > 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)'
+                  },
+                  {
+                    name: 'Trend (ADX)',
+                    value: selectedStock?.indicators.adx.toFixed(2),
+                    meaning: selectedStock?.indicators.adx > 25 ? 'Strong Trend' : 'Weak Trend',
+                    desc: 'Average Directional Index quantifies trend strength regardless of direction.',
+                    color: selectedStock?.indicators.adx > 25 ? 'var(--accent-gold)' : 'var(--text-secondary)'
+                  },
+                  {
+                    name: 'BB Position',
+                    value: (selectedStock?.indicators.bb_pos * 100).toFixed(1) + '%',
+                    meaning: selectedStock?.indicators.bb_pos > 0.8 ? 'Near Upper' : selectedStock?.indicators.bb_pos < 0.2 ? 'Near Lower' : 'Mid Range',
+                    desc: 'Bollinger Band Position indicates where price is relative to volatility bands.',
+                    color: 'var(--text-secondary)'
+                  },
+                  {
+                    name: 'Volatility (ATR)',
+                    value: selectedStock?.indicators.atr.toFixed(4),
+                    meaning: selectedStock?.indicators.atr > 1.5 ? 'High Vol' : 'Low Vol',
+                    desc: 'Average True Range measures market volatility.',
+                    color: 'var(--text-secondary)'
+                  },
+                  {
+                    name: 'Volume Surge',
+                    value: selectedStock?.indicators.volume_surge.toFixed(2) + 'x',
+                    meaning: selectedStock?.indicators.volume_surge > 1.5 ? 'High Volume' : 'Normal',
+                    desc: 'Current volume compared to 20-day average.',
+                    color: selectedStock?.indicators.volume_surge > 1.5 ? 'var(--accent-gold)' : 'var(--text-secondary)'
+                  },
+                  {
+                    name: 'Z-Score',
+                    value: selectedStock?.indicators.zscore.toFixed(2),
+                    meaning: Math.abs(selectedStock?.indicators.zscore) > 2 ? 'Extreme' : 'Normal',
+                    desc: 'Statistical distance from the mean price.',
+                    color: Math.abs(selectedStock?.indicators.zscore) > 2 ? 'var(--accent-rose)' : 'var(--text-secondary)'
+                  },
+                  {
+                    name: 'SuperTrend',
+                    value: selectedStock?.indicators.supertrend > 0 ? 'Buy' : 'Sell',
+                    meaning: selectedStock?.indicators.supertrend > 0 ? 'Bullish' : 'Bearish',
+                    desc: 'Trend following indicator based on ATR and Median Price.',
+                    color: selectedStock?.indicators.supertrend > 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)'
+                  }
+                ].map((ind, i) => (
+                  <motion.div 
+                    key={ind.name}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                    className="indicator-card"
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="ind-name">{ind.name}</span>
+                      <span className="ind-meaning" style={{ color: ind.color }}>{ind.meaning}</span>
                     </div>
-                  </div>
-                  <span style={{ fontWeight: 600 }}>{selectedStock?.indicators.macd.toFixed(4)}</span>
-               </div>
+                    <div className="ind-value">{ind.value}</div>
+                    <p className="ind-desc">{ind.desc}</p>
+                  </motion.div>
+                ))}
+              </div>
             </div>
           </motion.div>
       </main>
