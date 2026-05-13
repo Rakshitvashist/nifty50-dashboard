@@ -1,117 +1,166 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createChart, ColorType } from 'lightweight-charts';
-import { motion, AnimatePresence } from 'framer-motion';
-import { TrendingUp, TrendingDown, Activity, Shield, Zap, Info } from 'lucide-react';
+import { motion } from 'framer-motion';
+import {
+  TrendingUp, TrendingDown, Activity, Shield, Zap, Info,
+  Target, BarChart2, Percent, AlertTriangle
+} from 'lucide-react';
 
+// ── helpers ──────────────────────────────────────────────────────────────────
+const fmt = (n, d = 2) => (typeof n === 'number' ? n.toFixed(d) : '—');
+const pct  = (n)        => fmt(n * 100, 1) + '%';
+
+const consensusClass = (v) => v > 0.2 ? 'buy' : v < -0.2 ? 'sell' : 'neutral';
+const consensusLabel = (v) => {
+  if (v > 0.5) return 'Strong Buy';
+  if (v > 0.2) return 'Buy';
+  if (v < -0.5) return 'Strong Sell';
+  if (v < -0.2) return 'Sell';
+  return 'Neutral';
+};
+const signalColor  = (s) => s === 1 ? 'var(--accent-emerald)' : s === -1 ? 'var(--accent-rose)' : 'var(--text-secondary)';
+const signalLabel  = (s) => s === 1 ? 'BUY' : s === -1 ? 'SELL' : 'HOLD';
+const confColor    = (c) => c > 0.6 ? 'var(--accent-emerald)' : c > 0.3 ? 'var(--accent-gold)' : 'var(--text-secondary)';
+
+// ── sub-components ────────────────────────────────────────────────────────────
+
+/** Pill badge for indicator state */
+const Pill = ({ label, color }) => (
+  <span className="pill" style={{ background: `${color}22`, color }}>{label}</span>
+);
+
+/** Price-target row */
+const TargetRow = ({ label, price, prob, color }) => (
+  <div className="target-row">
+    <span className="target-label" style={{ color }}>{label}</span>
+    <span className="target-price">₹{fmt(price, 0)}</span>
+    <span className="target-prob">{pct(prob)} prob</span>
+    <div className="target-bar-wrap">
+      <div className="target-bar" style={{ width: pct(prob), background: color }} />
+    </div>
+  </div>
+);
+
+/** Hit-ratio ring-like display */
+const HitRing = ({ label, value }) => {
+  const pctVal = Math.round(value * 100);
+  const color  = pctVal >= 60 ? 'var(--accent-emerald)' : pctVal >= 50 ? 'var(--accent-gold)' : 'var(--accent-rose)';
+  return (
+    <div className="hit-ring">
+      <div className="hit-ring-value" style={{ color }}>{pctVal}%</div>
+      <div className="hit-ring-label">{label}</div>
+    </div>
+  );
+};
+
+// ── main ──────────────────────────────────────────────────────────────────────
 const App = () => {
-  const [data, setData] = useState([]);
+  const [data, setData]                 = useState([]);
   const [selectedStock, setSelectedStock] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const chartContainerRef = useRef();
-  const chartRef = useRef();
+  const [loading, setLoading]           = useState(true);
+  const chartContainerRef               = useRef();
+  const chartRef                        = useRef();
 
   useEffect(() => {
     fetch('summary.json')
-      .then(res => res.json())
-      .then(json => {
-        setData(json);
-        setSelectedStock(json[0]);
-        setLoading(false);
-      })
-      .catch(err => console.error("Error loading data:", err));
+      .then(r => r.json())
+      .then(json => { setData(json); setSelectedStock(json[0]); setLoading(false); })
+      .catch(err => console.error('Error loading data:', err));
   }, []);
 
+  // ── chart ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!selectedStock || !chartContainerRef.current) return;
+    let chart  = chartRef.current;
+    let series = chartContainerRef.current._series;
 
-    let chart = chartRef.current;
-    let series = chartContainerRef.current.series;
-
-    // Initialize chart only once
     if (!chart) {
       chart = createChart(chartContainerRef.current, {
-        layout: {
-          background: { type: ColorType.Solid, color: 'transparent' },
-          textColor: '#a0a0a0',
-          fontFamily: 'Outfit, sans-serif',
-        },
-        grid: {
-          vertLines: { color: 'rgba(255, 255, 255, 0.05)' },
-          horzLines: { color: 'rgba(255, 255, 255, 0.05)' },
-        },
-        width: chartContainerRef.current.clientWidth,
+        layout: { background: { type: ColorType.Solid, color: 'transparent' }, textColor: '#a0a0a0', fontFamily: 'Outfit, sans-serif' },
+        grid:   { vertLines: { color: 'rgba(255,255,255,0.05)' }, horzLines: { color: 'rgba(255,255,255,0.05)' } },
+        width:  chartContainerRef.current.clientWidth,
         height: chartContainerRef.current.clientHeight,
-        timeScale: {
-          borderColor: 'rgba(255, 255, 255, 0.1)',
-        },
+        timeScale: { borderColor: 'rgba(255,255,255,0.1)' },
       });
-
       series = chart.addCandlestickSeries({
-        upColor: '#10b981',
-        downColor: '#f43f5e',
-        borderVisible: false,
-        wickUpColor: '#10b981',
-        wickDownColor: '#f43f5e',
+        upColor: '#10b981', downColor: '#f43f5e', borderVisible: false,
+        wickUpColor: '#10b981', wickDownColor: '#f43f5e',
       });
-
       chartRef.current = chart;
-      chartContainerRef.current.series = series;
-
-      const handleResize = () => {
-        if (chartContainerRef.current) {
-          chart.applyOptions({ width: chartContainerRef.current.clientWidth });
-        }
-      };
-      window.addEventListener('resize', handleResize);
+      chartContainerRef.current._series = series;
+      window.addEventListener('resize', () => chart.applyOptions({ width: chartContainerRef.current?.clientWidth }));
     }
 
-    const formattedData = selectedStock.history.map(item => ({
-      time: item.time,
-      open: item.open,
-      high: item.high,
-      low: item.low,
-      close: item.close,
-    }));
-
-    // Update data without destroying the chart
-    series.setData(formattedData);
+    series.setData(selectedStock.history.map(d => ({
+      time: d.time, open: d.open, high: d.high, low: d.low, close: d.close,
+    })));
     chart.timeScale().fitContent();
-
   }, [selectedStock]);
 
-  if (loading) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-black">
-        <motion.div 
-          animate={{ rotate: 360 }}
-          transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-          className="w-8 h-8 border-2 border-gold rounded-full border-t-transparent"
-        />
-      </div>
-    );
-  }
+  if (loading) return (
+    <div style={{ display:'flex', height:'100vh', alignItems:'center', justifyContent:'center', background:'#0a0a0a' }}>
+      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+        style={{ width:32, height:32, border:'2px solid #d4af37', borderTopColor:'transparent', borderRadius:'50%' }} />
+    </div>
+  );
 
-  const getConsensusClass = (val) => {
-    if (val > 0.2) return 'buy';
-    if (val < -0.2) return 'sell';
-    return 'neutral';
-  };
+  const s  = selectedStock;
+  const pr = s?.prediction  || {};
+  const hr = s?.hit_ratio   || {};
+  const ind = s?.indicators || {};
 
-  const getConsensusLabel = (val) => {
-    if (val > 0.5) return 'Strong Buy';
-    if (val > 0.2) return 'Buy';
-    if (val < -0.5) return 'Strong Sell';
-    if (val < -0.2) return 'Sell';
-    return 'Neutral';
-  };
+  // ── indicator cards config ─────────────────────────────────────────────────
+  const indicatorCards = [
+    { name: 'RSI (14)',       value: fmt(ind.rsi, 1),
+      meaning: ind.rsi > 70 ? 'Overbought' : ind.rsi < 30 ? 'Oversold' : 'Neutral',
+      color:   ind.rsi > 70 ? 'var(--accent-rose)' : ind.rsi < 30 ? 'var(--accent-emerald)' : 'var(--text-secondary)',
+      desc: 'Measures momentum; >70 overbought, <30 oversold.' },
+
+    { name: 'MACD Hist',      value: fmt(ind.macd, 3),
+      meaning: ind.macd > 0 ? 'Bullish momentum' : 'Bearish momentum',
+      color:   ind.macd > 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)',
+      desc: 'Histogram shows divergence between fast and slow EMA.' },
+
+    { name: 'ADX (14)',       value: fmt(ind.adx, 1),
+      meaning: ind.adx > 25 ? 'Strong trend' : 'Weak / no trend',
+      color:   ind.adx > 25 ? 'var(--accent-gold)' : 'var(--text-secondary)',
+      desc: 'Trend strength 0-100; >25 confirms directional move.' },
+
+    { name: 'BB Position',   value: pct(ind.bb_pos),
+      meaning: ind.bb_pos > 0.8 ? 'Near upper band' : ind.bb_pos < 0.2 ? 'Near lower band' : 'Mid-range',
+      color:   ind.bb_pos > 0.8 ? 'var(--accent-rose)' : ind.bb_pos < 0.2 ? 'var(--accent-emerald)' : 'var(--text-secondary)',
+      desc: 'Price position within Bollinger Bands (20,2). >80% = extended up.' },
+
+    { name: 'ATR (14)',       value: `₹${fmt(ind.atr, 1)}`,
+      meaning: ind.atr > ind.atr * 1.5 ? 'High volatility' : 'Normal volatility',
+      color:   'var(--text-secondary)',
+      desc: 'Average True Range — daily expected price swing in rupees.' },
+
+    { name: 'SuperTrend',    value: ind.supertrend > 0 ? 'BUY' : 'SELL',
+      meaning: ind.supertrend > 0 ? 'Price above band' : 'Price below band',
+      color:   ind.supertrend > 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)',
+      desc: 'ATR-based trailing stop; flips on breakout/breakdown.' },
+
+    { name: 'Volume Surge',  value: `${fmt(ind.volume_surge, 2)}x`,
+      meaning: ind.volume_surge > 1.5 ? 'Unusual volume' : 'Normal volume',
+      color:   ind.volume_surge > 1.5 ? 'var(--accent-gold)' : 'var(--text-secondary)',
+      desc: 'Current volume vs 20-day average. >1.5× = institutional interest.' },
+
+    { name: 'Z-Score',       value: fmt(ind.zscore, 2),
+      meaning: Math.abs(ind.zscore) > 2 ? 'Statistically extreme' : 'Within normal range',
+      color:   Math.abs(ind.zscore) > 2 ? 'var(--accent-rose)' : 'var(--text-secondary)',
+      desc: 'Standard deviations from 20-day mean price. |z|>2 = mean-reversion alert.' },
+  ];
 
   return (
-    <div className="flex w-full h-screen overflow-hidden">
-      {/* Sidebar */}
+    <div className="app-shell">
+      {/* ── sidebar ────────────────────────────────────────────────────────── */}
       <aside className="sidebar">
         <div className="sidebar-header">
           <h1>NIFTY 50 INSIGHTS</h1>
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>Institutional Grade Analytics</p>
+          <p style={{ fontSize:'0.75rem', color:'var(--text-secondary)', marginTop:4 }}>
+            Institutional Grade Analytics
+          </p>
         </div>
         <div className="stock-list">
           {data.map(stock => (
@@ -119,18 +168,18 @@ const App = () => {
               key={stock.symbol}
               whileHover={{ x: 4 }}
               onClick={() => setSelectedStock(stock)}
-              className={`stock-item ${selectedStock?.symbol === stock.symbol ? 'active' : ''}`}
+              className={`stock-item ${s?.symbol === stock.symbol ? 'active' : ''}`}
             >
-              <div className="flex justify-between items-center">
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                 <span className="symbol">{stock.symbol}</span>
-                <span className={`consensus ${getConsensusClass(stock.consensus)}`}>
-                  {getConsensusLabel(stock.consensus)}
+                <span className={`consensus ${consensusClass(stock.consensus)}`}>
+                  {consensusLabel(stock.consensus)}
                 </span>
               </div>
-              <div className="flex justify-between items-center mt-1" style={{ fontSize: '0.85rem' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>{stock.price.toFixed(2)}</span>
+              <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.82rem', marginTop:4 }}>
+                <span style={{ color:'var(--text-secondary)' }}>₹{fmt(stock.price)}</span>
                 <span style={{ color: stock.change >= 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)' }}>
-                  {stock.change >= 0 ? '+' : ''}{stock.change.toFixed(2)}
+                  {stock.change >= 0 ? '+' : ''}{fmt(stock.change)}
                 </span>
               </div>
             </motion.div>
@@ -138,148 +187,168 @@ const App = () => {
         </div>
       </aside>
 
-      {/* Main Content */}
+      {/* ── main ───────────────────────────────────────────────────────────── */}
       <main className="main-content">
-        <motion.div
-          initial={{ opacity: 0.5, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-          className="w-full flex flex-col gap-6"
-        >
-            {/* Header Stats */}
-            <div className="header-stats">
-              <div className="glass-panel stat-card">
-                <div className="stat-label flex items-center gap-2"><Activity size={14} /> Last Price</div>
-                <div className="stat-value">₹{selectedStock?.price.toLocaleString()}</div>
+        <motion.div initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} transition={{ duration:0.3 }}
+          style={{ display:'flex', flexDirection:'column', gap:24, width:'100%' }}>
+
+          {/* header stats */}
+          <div className="header-stats">
+            <div className="glass-panel stat-card">
+              <div className="stat-label"><Activity size={14} style={{ display:'inline', marginRight:6 }} />Last Price</div>
+              <div className="stat-value">₹{s?.price?.toLocaleString()}</div>
+              <div style={{ fontSize:'0.8rem', marginTop:4, color: s?.change >= 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)' }}>
+                {s?.change >= 0 ? '▲' : '▼'} {fmt(Math.abs(s?.change))}
               </div>
-              <div className="glass-panel stat-card">
-                <div className="stat-label flex items-center gap-2"><Zap size={14} /> RSI (14)</div>
-                <div className="stat-value" style={{ color: selectedStock?.indicators.rsi > 70 ? 'var(--accent-rose)' : selectedStock?.indicators.rsi < 30 ? 'var(--accent-emerald)' : 'inherit' }}>
-                  {selectedStock?.indicators.rsi.toFixed(1)}
+            </div>
+            <div className="glass-panel stat-card">
+              <div className="stat-label"><Zap size={14} style={{ display:'inline', marginRight:6 }} />RSI (14)</div>
+              <div className="stat-value" style={{ color: ind.rsi > 70 ? 'var(--accent-rose)' : ind.rsi < 30 ? 'var(--accent-emerald)' : 'inherit' }}>
+                {fmt(ind.rsi, 1)}
+              </div>
+              <div style={{ fontSize:'0.78rem', color:'var(--text-secondary)', marginTop:4 }}>
+                {ind.rsi > 70 ? 'Overbought zone' : ind.rsi < 30 ? 'Oversold zone' : 'Neutral zone'}
+              </div>
+            </div>
+            <div className="glass-panel stat-card">
+              <div className="stat-label"><Shield size={14} style={{ display:'inline', marginRight:6 }} />Consensus</div>
+              <div className={`stat-value consensus ${consensusClass(s?.consensus)}`} style={{ background:'transparent', padding:0, fontSize:'1.25rem' }}>
+                {consensusLabel(s?.consensus)}
+              </div>
+              <div style={{ fontSize:'0.78rem', color:'var(--text-secondary)', marginTop:4 }}>
+                Score: {fmt(s?.consensus, 3)}
+              </div>
+            </div>
+            <div className="glass-panel stat-card">
+              <div className="stat-label"><Info size={14} style={{ display:'inline', marginRight:6 }} />Industry</div>
+              <div className="stat-value" style={{ fontSize:'1rem' }}>{s?.industry}</div>
+              <div style={{ fontSize:'0.78rem', color:'var(--text-secondary)', marginTop:4 }}>{s?.company}</div>
+            </div>
+          </div>
+
+          {/* candlestick chart */}
+          <div className="glass-panel p-4" style={{ height:480 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+              <span style={{ fontWeight:600, color:'var(--accent-gold)' }}>Historical Performance — 100 Days</span>
+              <span style={{ fontSize:'0.82rem', color:'var(--text-secondary)' }}>OHLC Candlestick</span>
+            </div>
+            <div ref={chartContainerRef} style={{ width:'100%', height:'calc(100% - 40px)' }} />
+          </div>
+
+          {/* ── Consensus Prediction Panel ──────────────────────────────────── */}
+          <div className="glass-panel p-6">
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:20 }}>
+              <Target size={20} color="var(--accent-gold)" />
+              <h2 style={{ margin:0, fontSize:'1.15rem', fontWeight:700 }}>Consensus Prediction</h2>
+              <span style={{ marginLeft:'auto', fontSize:'0.78rem', color:'var(--text-secondary)' }}>
+                Weighted vote of 400+ indicators
+              </span>
+            </div>
+
+            <div className="prediction-grid">
+              {/* ── signal block ── */}
+              <div className="pred-signal-block glass-panel">
+                <div style={{ fontSize:'0.8rem', color:'var(--text-secondary)', marginBottom:8 }}>Signal</div>
+                <div style={{ fontSize:'2.8rem', fontWeight:800, color: signalColor(pr.signal), lineHeight:1 }}>
+                  {signalLabel(pr.signal)}
+                </div>
+                <div style={{ fontSize:'0.85rem', color: confColor(pr.confidence), marginTop:8 }}>
+                  {pr.confidence_level?.toUpperCase()} confidence · {fmt(pr.confidence * 100, 1)}%
+                </div>
+
+                {/* bullish/bearish bar */}
+                <div style={{ marginTop:16 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.75rem', marginBottom:4 }}>
+                    <span style={{ color:'var(--accent-emerald)' }}>▲ Bullish {fmt(pr.bullish_pct, 1)}%</span>
+                    <span style={{ color:'var(--accent-rose)'    }}>▼ Bearish {fmt(pr.bearish_pct, 1)}%</span>
+                  </div>
+                  <div className="consensus-bar-track">
+                    <div className="consensus-bar-fill" style={{ width: `${pr.bullish_pct}%` }} />
+                  </div>
+                </div>
+
+                <div style={{ marginTop:12, fontSize:'0.78rem', color:'var(--text-secondary)' }}>
+                  Expected move: ±{fmt(pr.expected_move_pct, 2)}%
                 </div>
               </div>
-              <div className="glass-panel stat-card">
-                <div className="stat-label flex items-center gap-2"><Shield size={14} /> Consensus</div>
-                <div className={`stat-value consensus ${getConsensusClass(selectedStock?.consensus)}`} style={{ background: 'transparent', padding: 0, fontSize: '1.25rem' }}>
-                  {getConsensusLabel(selectedStock?.consensus)}
+
+              {/* ── price targets ── */}
+              <div className="pred-targets-block glass-panel">
+                <div style={{ fontSize:'0.8rem', color:'var(--text-secondary)', marginBottom:12 }}>
+                  {pr.direction === 'LONG' ? '📈 Long Targets' : '📉 Short Targets'}
+                </div>
+                <TargetRow label="T1"   price={pr.target_1}  prob={pr.prob_target_1} color="var(--accent-emerald)" />
+                <TargetRow label="T2"   price={pr.target_2}  prob={pr.prob_target_2} color="var(--accent-gold)"    />
+                <TargetRow label="T3"   price={pr.target_3}  prob={pr.prob_target_3} color="var(--accent-rose)"    />
+                <div className="stop-loss-row">
+                  <AlertTriangle size={14} color="var(--accent-rose)" />
+                  <span>Stop Loss</span>
+                  <span style={{ color:'var(--accent-rose)', fontWeight:700 }}>₹{fmt(pr.stop_loss, 0)}</span>
                 </div>
               </div>
-              <div className="glass-panel stat-card">
-                <div className="stat-label flex items-center gap-2"><Info size={14} /> Industry</div>
-                <div className="stat-value" style={{ fontSize: '1.1rem' }}>{selectedStock?.industry}</div>
+            </div>
+          </div>
+
+          {/* ── Hit Ratio Backtester ────────────────────────────────────────── */}
+          <div className="glass-panel p-6">
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:20 }}>
+              <BarChart2 size={20} color="var(--accent-gold)" />
+              <h2 style={{ margin:0, fontSize:'1.15rem', fontWeight:700 }}>Hit Ratio Backtester</h2>
+              <span style={{ marginLeft:'auto', fontSize:'0.78rem', color:'var(--text-secondary)' }}>
+                Historical prediction accuracy
+              </span>
+            </div>
+
+            <div className="hit-ratio-grid">
+              <HitRing label="5-Day Overall"   value={hr.overall_5d  ?? 0.5} />
+              <HitRing label="10-Day Overall"  value={hr.overall_10d ?? 0.5} />
+              <HitRing label="High Conf 5D"    value={hr.high_conf_5d ?? 0.5} />
+              <HitRing label="Buy Hit Rate"    value={hr.buy_hit_5d  ?? 0.5} />
+              <HitRing label="Sell Hit Rate"   value={hr.sell_hit_5d ?? 0.5} />
+
+              {/* stats summary */}
+              <div className="hit-ring">
+                <div className="hit-ring-value" style={{ fontSize:'1.1rem', color:'var(--accent-gold)' }}>
+                  {hr.win_count_5d}/{hr.signal_count_5d}
+                </div>
+                <div className="hit-ring-label">Wins / Signals</div>
               </div>
             </div>
 
-            {/* Chart Area */}
-            <div className="glass-panel chart-container p-4" style={{ height: '500px' }}>
-              <div className="flex justify-between items-center mb-4">
-                <span style={{ fontWeight: 600, color: 'var(--accent-gold)' }}>Historical performance (100 Days)</span>
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>OHLC Candlestick Engine</span>
-              </div>
-              <div ref={chartContainerRef} style={{ width: '100%', height: 'calc(100% - 40px)' }} />
+            <div style={{ marginTop:16, padding:'12px 16px', background:'rgba(255,255,255,0.02)', borderRadius:10, fontSize:'0.82rem', color:'var(--text-secondary)' }}>
+              Avg directional return on signal:&nbsp;
+              <span style={{ color: hr.avg_directional_return >= 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)', fontWeight:700 }}>
+                {hr.avg_directional_return >= 0 ? '+' : ''}{fmt(hr.avg_directional_return, 3)}%
+              </span>
             </div>
+          </div>
 
-            {/* Indicator Analysis Section */}
-            <div className="glass-panel p-6">
-              <div className="flex items-center gap-2 mb-6">
-                <Shield size={20} className="text-gold" />
-                <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Technical Indicator Analysis</h2>
-              </div>
-              
-              <div className="indicator-details-grid">
-                {[
-                  {
-                    name: 'RSI (14)',
-                    value: selectedStock?.indicators.rsi.toFixed(2),
-                    meaning: selectedStock?.indicators.rsi > 70 ? 'Overbought' : selectedStock?.indicators.rsi < 30 ? 'Oversold' : 'Neutral',
-                    desc: 'Relative Strength Index measures the speed and change of price movements.',
-                    color: selectedStock?.indicators.rsi > 70 ? 'var(--accent-rose)' : selectedStock?.indicators.rsi < 30 ? 'var(--accent-emerald)' : 'var(--text-secondary)'
-                  },
-                  {
-                    name: 'MACD Hist',
-                    value: selectedStock?.indicators.macd.toFixed(4),
-                    meaning: selectedStock?.indicators.macd > 0 ? 'Bullish' : 'Bearish',
-                    desc: 'Moving Average Convergence Divergence shows relationship between two moving averages.',
-                    color: selectedStock?.indicators.macd > 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)'
-                  },
-                  {
-                    name: 'Trend (ADX)',
-                    value: selectedStock?.indicators.adx.toFixed(2),
-                    meaning: selectedStock?.indicators.adx > 25 ? 'Strong Trend' : 'Weak Trend',
-                    desc: 'Average Directional Index quantifies trend strength regardless of direction.',
-                    color: selectedStock?.indicators.adx > 25 ? 'var(--accent-gold)' : 'var(--text-secondary)'
-                  },
-                  {
-                    name: 'BB Position',
-                    value: (selectedStock?.indicators.bb_pos * 100).toFixed(1) + '%',
-                    meaning: selectedStock?.indicators.bb_pos > 0.8 ? 'Near Upper' : selectedStock?.indicators.bb_pos < 0.2 ? 'Near Lower' : 'Mid Range',
-                    desc: 'Bollinger Band Position indicates where price is relative to volatility bands.',
-                    color: 'var(--text-secondary)'
-                  },
-                  {
-                    name: 'Volatility (ATR)',
-                    value: selectedStock?.indicators.atr.toFixed(4),
-                    meaning: selectedStock?.indicators.atr > 1.5 ? 'High Vol' : 'Low Vol',
-                    desc: 'Average True Range measures market volatility.',
-                    color: 'var(--text-secondary)'
-                  },
-                  {
-                    name: 'Volume Surge',
-                    value: selectedStock?.indicators.volume_surge.toFixed(2) + 'x',
-                    meaning: selectedStock?.indicators.volume_surge > 1.5 ? 'High Volume' : 'Normal',
-                    desc: 'Current volume compared to 20-day average.',
-                    color: selectedStock?.indicators.volume_surge > 1.5 ? 'var(--accent-gold)' : 'var(--text-secondary)'
-                  },
-                  {
-                    name: 'Z-Score',
-                    value: selectedStock?.indicators.zscore.toFixed(2),
-                    meaning: Math.abs(selectedStock?.indicators.zscore) > 2 ? 'Extreme' : 'Normal',
-                    desc: 'Statistical distance from the mean price.',
-                    color: Math.abs(selectedStock?.indicators.zscore) > 2 ? 'var(--accent-rose)' : 'var(--text-secondary)'
-                  },
-                  {
-                    name: 'SuperTrend',
-                    value: selectedStock?.indicators.supertrend > 0 ? 'Buy' : 'Sell',
-                    meaning: selectedStock?.indicators.supertrend > 0 ? 'Bullish' : 'Bearish',
-                    desc: 'Trend following indicator based on ATR and Median Price.',
-                    color: selectedStock?.indicators.supertrend > 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)'
-                  }
-                ].map((ind, i) => (
-                  <motion.div 
-                    key={ind.name}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                    className="indicator-card"
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="ind-name">{ind.name}</span>
-                      <span className="ind-meaning" style={{ color: ind.color }}>{ind.meaning}</span>
-                    </div>
-                    <div className="ind-value">{ind.value}</div>
-                    <p className="ind-desc">{ind.desc}</p>
-                  </motion.div>
-                ))}
-              </div>
+          {/* ── Technical Indicator Analysis ────────────────────────────────── */}
+          <div className="glass-panel p-6">
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:20 }}>
+              <Percent size={20} color="var(--accent-gold)" />
+              <h2 style={{ margin:0, fontSize:'1.15rem', fontWeight:700 }}>Technical Indicator Analysis</h2>
             </div>
-          </motion.div>
+            <div className="indicator-details-grid">
+              {indicatorCards.map((ind, i) => (
+                <motion.div key={ind.name}
+                  initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}
+                  transition={{ delay: i * 0.04 }}
+                  className="indicator-card"
+                >
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
+                    <span className="ind-name">{ind.name}</span>
+                    <Pill label={ind.meaning} color={ind.color} />
+                  </div>
+                  <div className="ind-value">{ind.value}</div>
+                  <p className="ind-desc">{ind.desc}</p>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+
+        </motion.div>
       </main>
-      
-      <style>{`
-        .flex { display: flex; }
-        .flex-col { flex-direction: column; }
-        .justify-between { justify-content: space-between; }
-        .items-center { align-items: center; }
-        .gap-2 { gap: 8px; }
-        .gap-6 { gap: 24px; }
-        .p-4 { padding: 16px; }
-        .p-6 { padding: 24px; }
-        .mt-1 { margin-top: 4px; }
-        .mb-4 { margin-bottom: 16px; }
-        .w-full { width: 100%; }
-        .h-screen { height: 100vh; }
-        .overflow-hidden { overflow: hidden; }
-      `}</style>
     </div>
   );
 };
