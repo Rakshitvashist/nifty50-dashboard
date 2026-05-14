@@ -451,9 +451,15 @@ if __name__ == "__main__":
     import glob
     from datetime import datetime
     
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input", default="nifty50_host", help="Input directory")
+    parser.add_argument("--output", default="processed_indicators", help="Output directory")
+    args = parser.parse_args()
+    
     # Path settings
-    DATA_DIR = "nifty50_host"
-    OUTPUT_DIR = "processed_indicators"
+    DATA_DIR = args.input
+    OUTPUT_DIR = args.output
     
     if not os.path.exists(OUTPUT_DIR):
         os.makedirs(OUTPUT_DIR)

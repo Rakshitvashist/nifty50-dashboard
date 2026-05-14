@@ -58,15 +58,25 @@ const App = () => {
   const [data, setData]                 = useState([]);
   const [selectedStock, setSelectedStock] = useState(null);
   const [loading, setLoading]           = useState(true);
+  const [indexType, setIndexType]       = useState('50'); // '50' or '500'
   const chartContainerRef               = useRef();
   const chartRef                        = useRef();
 
   useEffect(() => {
-    fetch('summary.json')
+    setLoading(true);
+    const fileName = indexType === '50' ? 'summary.json' : 'summary_500.json';
+    fetch(fileName)
       .then(r => r.json())
-      .then(json => { setData(json); setSelectedStock(json[0]); setLoading(false); })
-      .catch(err => console.error('Error loading data:', err));
-  }, []);
+      .then(json => { 
+        setData(json); 
+        setSelectedStock(json[0]); 
+        setLoading(false); 
+      })
+      .catch(err => {
+        console.error('Error loading data:', err);
+        setLoading(false);
+      });
+  }, [indexType]);
 
   // ── chart ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -157,11 +167,27 @@ const App = () => {
       {/* ── sidebar ────────────────────────────────────────────────────────── */}
       <aside className="sidebar">
         <div className="sidebar-header">
-          <h1>NIFTY 50 INSIGHTS</h1>
+          <h1>NIFTY {indexType} INSIGHTS</h1>
           <p style={{ fontSize:'0.75rem', color:'var(--text-secondary)', marginTop:4 }}>
             Institutional Grade Analytics
           </p>
         </div>
+        
+        <div className="index-tabs">
+          <div 
+            className={`index-tab ${indexType === '50' ? 'active' : ''}`}
+            onClick={() => setIndexType('50')}
+          >
+            Nifty 50
+          </div>
+          <div 
+            className={`index-tab ${indexType === '500' ? 'active' : ''}`}
+            onClick={() => setIndexType('500')}
+          >
+            Nifty 500
+          </div>
+        </div>
+
         <div className="stock-list">
           {data.map(stock => (
             <motion.div

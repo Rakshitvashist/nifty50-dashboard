@@ -248,4 +248,167 @@ def generate_summary():
 
 
 if __name__ == "__main__":
-    generate_summary()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input", default="processed_indicators", help="Input directory")
+    parser.add_argument("--output", default=os.path.join("dashboard", "public", "summary.json"), help="Output file")
+    args = parser.parse_args()
+
+    def generate_summary_with_args(data_dir, output_file):
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
+
+        files = glob.glob(os.path.join(data_dir, "*_with_indicators.csv"))
+        print(f"Aggregating data from {len(files)} files...")
+
+        predictor        = ConsensusPredictor(voting_threshold=0.15)
+        target_predictor = PriceTargetPredictor()
+        backtester       = HitRatioBacktester(forward_days=[5, 10])
+
+        summary = []
+
+        for file_path in files:
+            try:
+                df = pd.read_csv(file_path)
+                if df.empty or len(df) < 50:
+                    continue
+
+                symbol = os.path.basename(file_path).split('_')[0]
+
+                # ── Index ────────────────────────────────────────────────────────
+                if 'date' in df.columns:
+                    df['date'] = pd.to_datetime(df['date'])
+                    df = df.set_index('date')
+                df = df[~df.index.duplicated(keep='last')]   # remove duplicate dates
+                df.columns = [c.lower() for c in df.columns]
+                df = df.fillna(0)
+
+                # ── Separate OHLCV / indicators ──────────────────────────────────
+                ind_cols      = _indicator_cols(df)
+                indicators_df = df[ind_cols].astype(float)
+                quality_df    = pd.DataFrame(
+                    np.full(indicators_df.shape, 0.5),
+                    index=indicators_df.index,
+                    columns=indicators_df.columns
+                )
+
+                C = df['close'].values.astype(float)
+                H = df['high'].values.astype(float)
+                L = df['low'].values.astype(float)
+                V = df['volume'].values.astype(float)
+                price_series = df['close'].astype(float)
+
+                # ── Raw TA-Lib indicators ────────────────────────────────────────
+                raw_rsi      = talib.RSI(C, timeperiod=14)[-1]
+                _, _, macdhist = talib.MACD(C, 12, 26, 9)
+                raw_macd     = macdhist[-1]
+                
+                adx_series = pd.Series(talib.ADX(H, L, C, timeperiod=14), index=df.index)
+                raw_adx    = adx_series.iloc[-1]
+                
+                bb_up, bb_mid, bb_lo = talib.BBANDS(C, timeperiod=20)
+                raw_bb_pos   = (C[-1] - bb_lo[-1]) / (bb_up[-1] - bb_lo[-1] + 1e-10)
+                raw_atr      = talib.ATR(H, L, C, timeperiod=14)[-1]
+
+                atr_series = pd.Series(talib.ATR(H, L, C, timeperiod=14), index=df.index)
+
+                # ── Adaptive Quality Weights ─────────────────────────────────────
+                lookback = 100
+                if len(df) > lookback:
+                    future_rets = price_series.pct_change(5).shift(-5)
+                    perf_df = predictor.calculate_indicator_performance(
+                        indicators_df.iloc[-lookback-10:-10], 
+                        future_rets.iloc[-lookback-10:-10]
+                    )
+                    quality_df = predictor.get_adaptive_weights(perf_df, quality_df)
+
+                # ── Consensus predictor ──────────────────────────────────────────
+                predictions = predictor.predict(
+                    indicators_df, quality_df, price_series, atr_series, adx_series
+                )
+
+                # ── Hit-ratio backtester ─────────────────────────────────────────
+                hit_stats = backtester.backtest(predictions, price_series)
+                target_stats = backtester.backtest_targets(
+                    predictions, df['high'].astype(float), df['low'].astype(float), look_ahead=10
+                )
+
+                # ── Latest values ────────────────────────────────────────────────
+                latest_pred     = predictions.iloc[-1]
+                latest_price    = _safe(df['close'].iloc[-1])
+                latest_atr      = _safe(raw_atr, latest_price * 0.015)
+                latest_consensus = _safe(latest_pred['consensus_score'])
+
+                vol = price_series.pct_change().rolling(20).std().iloc[-1]
+                vol = _safe(vol, 0.01)
+                trend_strength = float(np.clip(_safe(raw_adx) / 50, 0, 1))
+
+                # ── Price targets ────────────────────────────────────────────────
+                targets = target_predictor.predict_targets(
+                    current_price=latest_price, consensus_score=latest_consensus, atr=latest_atr, volatility=vol, trend_strength=trend_strength
+                )
+
+                bullish_pct = _safe(latest_pred.get('bullish_pct', 50))
+                bearish_pct = _safe(latest_pred.get('bearish_pct', 50))
+                confidence  = _safe(latest_pred.get('confidence', 0))
+                signal_raw  = int(latest_pred.get('signal', 0))
+                exp_move    = _safe(latest_pred.get('expected_move_pct', 0))
+
+                # ── Chart data ───────────────────────────────────────────────────
+                chart_data = []
+                for _, row in df.tail(100).iterrows():
+                    chart_data.append({
+                        "time":   str(row.name.date()) if hasattr(row.name, 'date') else str(row.name),
+                        "open":   _safe(row['open']),
+                        "high":   _safe(row['high']),
+                        "low":    _safe(row['low']),
+                        "close":  _safe(row['close']),
+                        "volume": _safe(row['volume'])
+                    })
+
+                badge_cols = [c for c in df.columns if any(x in c for x in ['above', 'cross', 'signal', 'supertrend', 'oversold', 'overbought'])]
+                consensus_badge = float(df[badge_cols].iloc[-1].mean()) if badge_cols else 0.0
+
+                # ── Append record ─────────────────────────────────────────────────
+                summary.append({
+                    "symbol":   symbol,
+                    "company":  str(df.get('company', pd.Series([symbol])).iloc[-1] if 'company' in df else symbol),
+                    "industry": str(df.get('industry', pd.Series(['Unknown'])).iloc[-1] if 'industry' in df else 'Unknown'),
+                    "price":    latest_price,
+                    "change":   _safe(df['close'].iloc[-1] - df['close'].iloc[-2]),
+                    "consensus": consensus_badge,
+                    "indicators": {
+                        "rsi": _safe(raw_rsi, 50), "macd": _safe(raw_macd), "adx": _safe(raw_adx), "bb_pos": _safe(raw_bb_pos, 0.5),
+                        "atr": _safe(raw_atr), "supertrend": _safe(df.get('supertrend_10_3', pd.Series([0])).iloc[-1] if 'supertrend_10_3' in df else 0),
+                        "volume_surge": _safe(df.get('volume_surge_20', pd.Series([1])).iloc[-1] if 'volume_surge_20' in df else 1),
+                        "zscore": _safe(df.get('zscore_20', pd.Series([0])).iloc[-1] if 'zscore_20' in df else 0),
+                    },
+                    "prediction": {
+                        "signal": signal_raw, "direction": targets.get('direction', 'LONG'), "confidence": round(confidence, 4),
+                        "consensus_score": round(latest_consensus, 4), "bullish_pct": round(bullish_pct, 2), "bearish_pct": round(bearish_pct, 2),
+                        "target_1": round(_safe(targets.get('target_1', latest_price)), 2), "target_2": round(_safe(targets.get('target_2', latest_price)), 2),
+                        "target_3": round(_safe(targets.get('target_3', latest_price)), 2), "stop_loss": round(_safe(targets.get('stop_loss', latest_price)), 2),
+                        "prob_target_1": round(_safe(targets.get('prob_target_1', 0.5)), 4), "prob_target_2": round(_safe(targets.get('prob_target_2', 0.4)), 4),
+                        "prob_target_3": round(_safe(targets.get('prob_target_3', 0.3)), 4), "expected_move_pct": round(exp_move, 4),
+                    },
+                    "hit_ratio": {
+                        "overall_5d": hit_stats.get('overall_5d', 0.5), "overall_10d": hit_stats.get('overall_10d', 0.5),
+                        "buy_hit_5d": hit_stats.get('buy_hit_5d', 0.5), "sell_hit_5d": hit_stats.get('sell_hit_5d', 0.5),
+                        "high_conf_5d": hit_stats.get('high_conf_5d', 0.5), "high_conf_10d": hit_stats.get('high_conf_10d', 0.5),
+                        "signal_count_5d": hit_stats.get('signal_count_5d', 0), "win_count_5d": hit_stats.get('win_count_5d', 0),
+                        "avg_directional_return": hit_stats.get('avg_directional_return_pct', 0.0),
+                        "t1_hit_rate": target_stats.get('t1_hit_rate', 0), "t2_hit_rate": target_stats.get('t2_hit_rate', 0),
+                        "t3_hit_rate": target_stats.get('t3_hit_rate', 0), "sl_hit_rate": target_stats.get('sl_hit_rate', 0),
+                        "total_signals": target_stats.get('total_signals', 0)
+                    },
+                    "history": chart_data
+                })
+                print(f"[SUCCESS] Processed {symbol}")
+            except Exception as e:
+                print(f"[ERROR] {file_path}: {e}")
+
+        with open(output_file, 'w') as f:
+            json.dump(summary, f, indent=2)
+        print(f"\nSummary generated: {output_file}  ({len(summary)} stocks)")
+
+    generate_summary_with_args(args.input, args.output)
+
