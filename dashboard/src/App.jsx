@@ -62,6 +62,26 @@ const App = () => {
   const chartContainerRef               = useRef();
   const chartRef                        = useRef();
 
+  // ── destroy chart helper ────────────────────────────────────────────────────
+  const destroyChart = () => {
+    if (chartRef.current) {
+      try { chartRef.current.remove(); } catch (_) {}
+      chartRef.current = null;
+    }
+    if (chartContainerRef.current) {
+      chartContainerRef.current._series = null;
+    }
+  };
+
+  // ── switch index tab ────────────────────────────────────────────────────────
+  const handleIndexChange = (type) => {
+    if (type === indexType) return;
+    destroyChart();          // wipe stale chart before loading spinner mounts
+    setSelectedStock(null);
+    setData([]);
+    setIndexType(type);
+  };
+
   useEffect(() => {
     setLoading(true);
     const fileName = indexType === '50' ? 'summary.json' : 'summary_500.json';
@@ -76,6 +96,8 @@ const App = () => {
         console.error('Error loading data:', err);
         setLoading(false);
       });
+    // cleanup on unmount
+    return () => destroyChart();
   }, [indexType]);
 
   // ── chart ──────────────────────────────────────────────────────────────────
@@ -176,13 +198,13 @@ const App = () => {
         <div className="index-tabs">
           <div 
             className={`index-tab ${indexType === '50' ? 'active' : ''}`}
-            onClick={() => setIndexType('50')}
+            onClick={() => handleIndexChange('50')}
           >
             Nifty 50
           </div>
           <div 
             className={`index-tab ${indexType === '500' ? 'active' : ''}`}
-            onClick={() => setIndexType('500')}
+            onClick={() => handleIndexChange('500')}
           >
             Nifty 500
           </div>
