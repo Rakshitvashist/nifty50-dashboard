@@ -58,6 +58,7 @@ const App = () => {
   const [data, setData]                 = useState([]);
   const [selectedStock, setSelectedStock] = useState(null);
   const [loading, setLoading]           = useState(true);
+  const [fetchError, setFetchError]     = useState(null);
   const [indexType, setIndexType]       = useState('50'); // '50' or '500'
   const [searchQuery, setSearchQuery]   = useState('');
   const [activeFilter, setActiveFilter] = useState('ALL');
@@ -88,17 +89,23 @@ const App = () => {
 
   useEffect(() => {
     setLoading(true);
+    setFetchError(null);
     const fileName = indexType === '50' ? 'summary.json' : 'summary_500.json';
     const fetchUrl = `${import.meta.env.BASE_URL}${fileName}`;
     fetch(fetchUrl)
-      .then(r => r.json())
-      .then(json => { 
-        setData(json); 
-        setSelectedStock(json[0]); 
-        setLoading(false); 
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status} fetching ${fileName}`);
+        return r.text();
+      })
+      .then(text => {
+        const json = JSON.parse(text);
+        setData(json);
+        setSelectedStock(json[0]);
+        setLoading(false);
       })
       .catch(err => {
         console.error('Error loading data:', err);
+        setFetchError(err.message);
         setLoading(false);
       });
     // cleanup on unmount
@@ -138,6 +145,18 @@ const App = () => {
     <div style={{ display:'flex', height:'100vh', alignItems:'center', justifyContent:'center', background:'#0a0a0a' }}>
       <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
         style={{ width:32, height:32, border:'2px solid #d4af37', borderTopColor:'transparent', borderRadius:'50%' }} />
+    </div>
+  );
+
+  if (fetchError) return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100vh', alignItems:'center', justifyContent:'center', background:'#0a0a0a', color:'#f43f5e', fontFamily:'Outfit,sans-serif', gap:12 }}>
+      <AlertTriangle size={40} />
+      <div style={{ fontSize:'1.1rem', fontWeight:600 }}>Failed to load {indexType === '50' ? 'Nifty 50' : 'Nifty 500'} data</div>
+      <div style={{ fontSize:'0.85rem', color:'#888', maxWidth:400, textAlign:'center' }}>{fetchError}</div>
+      <button onClick={() => { setFetchError(null); setLoading(true); setIndexType(t => t); }}
+        style={{ marginTop:8, padding:'8px 20px', background:'#d4af37', color:'#000', border:'none', borderRadius:8, cursor:'pointer', fontWeight:600 }}>
+        Retry
+      </button>
     </div>
   );
 
