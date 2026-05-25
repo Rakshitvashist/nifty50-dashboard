@@ -3,7 +3,7 @@ import { createChart, ColorType } from 'lightweight-charts';
 import { motion } from 'framer-motion';
 import {
   TrendingUp, TrendingDown, Activity, Shield, Zap, Info,
-  Target, BarChart2, Percent, AlertTriangle
+  Target, BarChart2, Percent, AlertTriangle, Search, X, SlidersHorizontal
 } from 'lucide-react';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -59,6 +59,8 @@ const App = () => {
   const [selectedStock, setSelectedStock] = useState(null);
   const [loading, setLoading]           = useState(true);
   const [indexType, setIndexType]       = useState('50'); // '50' or '500'
+  const [searchQuery, setSearchQuery]   = useState('');
+  const [activeFilter, setActiveFilter] = useState('ALL');
   const chartContainerRef               = useRef();
   const chartRef                        = useRef();
 
@@ -79,6 +81,8 @@ const App = () => {
     destroyChart();          // wipe stale chart before loading spinner mounts
     setSelectedStock(null);
     setData([]);
+    setSearchQuery('');
+    setActiveFilter('ALL');
     setIndexType(type);
   };
 
@@ -140,6 +144,22 @@ const App = () => {
   const pr = s?.prediction  || {};
   const hr = s?.hit_ratio   || {};
   const ind = s?.indicators || {};
+
+  // ── filter pipeline ────────────────────────────────────────────────────────
+  const filteredData = data.filter(stock => {
+    const matchesSearch = stock.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (stock.company && stock.company.toLowerCase().includes(searchQuery.toLowerCase()));
+    
+    let matchesFilter = true;
+    if (activeFilter === 'BUY') {
+      matchesFilter = stock.consensus > 0.2;
+    } else if (activeFilter === 'SELL') {
+      matchesFilter = stock.consensus < -0.2;
+    } else if (activeFilter === 'NEUTRAL') {
+      matchesFilter = stock.consensus >= -0.2 && stock.consensus <= 0.2;
+    }
+    return matchesSearch && matchesFilter;
+  });
 
   // ── indicator cards config ─────────────────────────────────────────────────
   const indicatorCards = [
@@ -210,28 +230,86 @@ const App = () => {
           </div>
         </div>
 
+        {/* ── sidebar controls ── */}
+        <div className="sidebar-controls">
+          <div className="search-wrapper">
+            <Search size={15} className="search-icon" />
+            <input
+              type="text"
+              className="search-input"
+              placeholder={`Search ${indexType === '50' ? '50' : '500'} stocks...`}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button className="search-clear" onClick={() => setSearchQuery('')} title="Clear search">
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          <div className="filter-wrapper">
+            <div className="filter-header">
+              <SlidersHorizontal size={11} style={{ marginRight: 4 }} />
+              <span>Consensus Trend</span>
+            </div>
+            <div className="filter-buttons">
+              {['ALL', 'BUY', 'SELL', 'NEUTRAL'].map((filter) => (
+                <button
+                  key={filter}
+                  className={`filter-btn ${activeFilter === filter ? 'active' : ''} ${filter.toLowerCase()}`}
+                  onClick={() => setActiveFilter(filter)}
+                >
+                  <span className="dot" />
+                  {filter}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
         <div className="stock-list">
-          {data.map(stock => (
-            <motion.div
-              key={stock.symbol}
-              whileHover={{ x: 4 }}
-              onClick={() => setSelectedStock(stock)}
-              className={`stock-item ${s?.symbol === stock.symbol ? 'active' : ''}`}
-            >
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                <span className="symbol">{stock.symbol}</span>
-                <span className={`consensus ${consensusClass(stock.consensus)}`}>
-                  {consensusLabel(stock.consensus)}
-                </span>
+          {filteredData.length > 0 ? (
+            filteredData.map(stock => (
+              <motion.div
+                key={stock.symbol}
+                whileHover={{ x: 4 }}
+                onClick={() => setSelectedStock(stock)}
+                className={`stock-item ${s?.symbol === stock.symbol ? 'active' : ''}`}
+              >
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                  <span className="symbol">{stock.symbol}</span>
+                  <span className={`consensus ${consensusClass(stock.consensus)}`}>
+                    {consensusLabel(stock.consensus)}
+                  </span>
+                </div>
+                <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.82rem', marginTop:4 }}>
+                  <span style={{ color:'var(--text-secondary)' }}>₹{fmt(stock.price)}</span>
+                  <span style={{ color: stock.change >= 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)' }}>
+                    {stock.change >= 0 ? '+' : ''}{fmt(stock.change)}
+                  </span>
+                </div>
+              </motion.div>
+            ))
+          ) : (
+            <div className="no-stocks-found">
+              <AlertTriangle size={24} style={{ color: 'var(--accent-gold)' }} />
+              <div style={{ fontWeight: 600 }}>No Stocks Found</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                No equities match the active search and filter criteria.
               </div>
-              <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.82rem', marginTop:4 }}>
-                <span style={{ color:'var(--text-secondary)' }}>₹{fmt(stock.price)}</span>
-                <span style={{ color: stock.change >= 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)' }}>
-                  {stock.change >= 0 ? '+' : ''}{fmt(stock.change)}
-                </span>
-              </div>
-            </motion.div>
-          ))}
+              <button 
+                className="index-tab active" 
+                style={{ marginTop: 8, fontSize: '0.75rem', padding: '6px 12px', width: 'auto' }}
+                onClick={() => {
+                  setSearchQuery('');
+                  setActiveFilter('ALL');
+                }}
+              >
+                Reset Filters
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 
