@@ -89,7 +89,8 @@ const App = () => {
   useEffect(() => {
     setLoading(true);
     const fileName = indexType === '50' ? 'summary.json' : 'summary_500.json';
-    fetch(fileName)
+    const fetchUrl = `${import.meta.env.BASE_URL}${fileName}`;
+    fetch(fetchUrl)
       .then(r => r.json())
       .then(json => { 
         setData(json); 
