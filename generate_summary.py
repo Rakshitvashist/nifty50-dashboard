@@ -215,22 +215,22 @@ def generate_summary():
 
                 # ── Backtester hit ratios ────────────────────────────────────
                 "hit_ratio": {
-                    "overall_5d":              hit_stats.get('overall_5d', 0.5),
-                    "overall_10d":             hit_stats.get('overall_10d', 0.5),
-                    "buy_hit_5d":              hit_stats.get('buy_hit_5d', 0.5),
-                    "sell_hit_5d":             hit_stats.get('sell_hit_5d', 0.5),
-                    "high_conf_5d":            hit_stats.get('high_conf_5d', 0.5),
-                    "high_conf_10d":           hit_stats.get('high_conf_10d', 0.5),
-                    "signal_count_5d":         hit_stats.get('signal_count_5d', 0),
-                    "win_count_5d":            hit_stats.get('win_count_5d', 0),
-                    "avg_directional_return":  hit_stats.get('avg_directional_return_pct', 0.0),
+                    "overall_5d":              _safe(hit_stats.get('overall_5d', 0.5), 0.5),
+                    "overall_10d":             _safe(hit_stats.get('overall_10d', 0.5), 0.5),
+                    "buy_hit_5d":              _safe(hit_stats.get('buy_hit_5d', 0.5), 0.5),
+                    "sell_hit_5d":             _safe(hit_stats.get('sell_hit_5d', 0.5), 0.5),
+                    "high_conf_5d":            _safe(hit_stats.get('high_conf_5d', 0.5), 0.5),
+                    "high_conf_10d":           _safe(hit_stats.get('high_conf_10d', 0.5), 0.5),
+                    "signal_count_5d":         int(_safe(hit_stats.get('signal_count_5d', 0), 0)),
+                    "win_count_5d":            int(_safe(hit_stats.get('win_count_5d', 0), 0)),
+                    "avg_directional_return":  _safe(hit_stats.get('avg_directional_return_pct', 0.0), 0.0),
                     
                     # Target Hits (New)
-                    "t1_hit_rate":             target_stats.get('t1_hit_rate', 0),
-                    "t2_hit_rate":             target_stats.get('t2_hit_rate', 0),
-                    "t3_hit_rate":             target_stats.get('t3_hit_rate', 0),
-                    "sl_hit_rate":             target_stats.get('sl_hit_rate', 0),
-                    "total_signals":           target_stats.get('total_signals', 0)
+                    "t1_hit_rate":             _safe(target_stats.get('t1_hit_rate', 0), 0),
+                    "t2_hit_rate":             _safe(target_stats.get('t2_hit_rate', 0), 0),
+                    "t3_hit_rate":             _safe(target_stats.get('t3_hit_rate', 0), 0),
+                    "sl_hit_rate":             _safe(target_stats.get('sl_hit_rate', 0), 0),
+                    "total_signals":           int(_safe(target_stats.get('total_signals', 0), 0))
                 },
 
                 "history": chart_data
@@ -391,14 +391,14 @@ if __name__ == "__main__":
                         "prob_target_3": round(_safe(targets.get('prob_target_3', 0.3)), 4), "expected_move_pct": round(exp_move, 4),
                     },
                     "hit_ratio": {
-                        "overall_5d": hit_stats.get('overall_5d', 0.5), "overall_10d": hit_stats.get('overall_10d', 0.5),
-                        "buy_hit_5d": hit_stats.get('buy_hit_5d', 0.5), "sell_hit_5d": hit_stats.get('sell_hit_5d', 0.5),
-                        "high_conf_5d": hit_stats.get('high_conf_5d', 0.5), "high_conf_10d": hit_stats.get('high_conf_10d', 0.5),
-                        "signal_count_5d": hit_stats.get('signal_count_5d', 0), "win_count_5d": hit_stats.get('win_count_5d', 0),
-                        "avg_directional_return": hit_stats.get('avg_directional_return_pct', 0.0),
-                        "t1_hit_rate": target_stats.get('t1_hit_rate', 0), "t2_hit_rate": target_stats.get('t2_hit_rate', 0),
-                        "t3_hit_rate": target_stats.get('t3_hit_rate', 0), "sl_hit_rate": target_stats.get('sl_hit_rate', 0),
-                        "total_signals": target_stats.get('total_signals', 0)
+                        "overall_5d": _safe(hit_stats.get('overall_5d', 0.5), 0.5), "overall_10d": _safe(hit_stats.get('overall_10d', 0.5), 0.5),
+                        "buy_hit_5d": _safe(hit_stats.get('buy_hit_5d', 0.5), 0.5), "sell_hit_5d": _safe(hit_stats.get('sell_hit_5d', 0.5), 0.5),
+                        "high_conf_5d": _safe(hit_stats.get('high_conf_5d', 0.5), 0.5), "high_conf_10d": _safe(hit_stats.get('high_conf_10d', 0.5), 0.5),
+                        "signal_count_5d": int(_safe(hit_stats.get('signal_count_5d', 0), 0)), "win_count_5d": int(_safe(hit_stats.get('win_count_5d', 0), 0)),
+                        "avg_directional_return": _safe(hit_stats.get('avg_directional_return_pct', 0.0), 0.0),
+                        "t1_hit_rate": _safe(target_stats.get('t1_hit_rate', 0), 0), "t2_hit_rate": _safe(target_stats.get('t2_hit_rate', 0), 0),
+                        "t3_hit_rate": _safe(target_stats.get('t3_hit_rate', 0), 0), "sl_hit_rate": _safe(target_stats.get('sl_hit_rate', 0), 0),
+                        "total_signals": int(_safe(target_stats.get('total_signals', 0), 0))
                     },
                     "history": chart_data
                 })

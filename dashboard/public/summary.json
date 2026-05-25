@@ -32417,7 +32417,7 @@
       "high_conf_10d": 0.4595,
       "signal_count_5d": 4570,
       "win_count_5d": 2294,
-      "avg_directional_return": -Infinity,
+      "avg_directional_return": 0.0,
       "t1_hit_rate": 0.3144,
       "t2_hit_rate": 0.1049,
       "t3_hit_rate": 0.0317,
