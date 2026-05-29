@@ -172,6 +172,25 @@ def generate_summary():
             # ── Consensus from indicator columns (for sidebar badge) ──────────
             consensus_badge = float(latest_consensus)
 
+            # ── Breakdown for UI Category Cards & Modal ──────────────────────
+            grouped_cols = predictor._group_indicators(indicators_df.columns)
+            indicator_breakdown = {}
+            for cat, cols in grouped_cols.items():
+                if not cols: continue
+                cat_data = indicators_df[cols].iloc[-1]
+                buy = int((cat_data > 0).sum())
+                sell = int((cat_data < 0).sum())
+                neutral = int((cat_data == 0).sum())
+                
+                signals = {col: int(val) for col, val in cat_data.items() if not np.isnan(val)}
+                
+                indicator_breakdown[cat] = {
+                    "buy": buy,
+                    "sell": sell,
+                    "neutral": neutral,
+                    "signals": signals
+                }
+
             # ── Append record ─────────────────────────────────────────────────
             summary.append({
                 "symbol":   symbol,
@@ -192,6 +211,7 @@ def generate_summary():
                     "volume_surge": _safe(df.get('volume_surge_20', pd.Series([1])).iloc[-1] if 'volume_surge_20' in df else 1),
                     "zscore":       _safe(df.get('zscore_20', pd.Series([0])).iloc[-1] if 'zscore_20' in df else 0),
                 },
+                "indicator_breakdown": indicator_breakdown,
 
                 # ── Consensus prediction ─────────────────────────────────────
                 "prediction": {
@@ -365,6 +385,25 @@ if __name__ == "__main__":
 
                 consensus_badge = float(latest_consensus)
 
+                # ── Breakdown for UI Category Cards & Modal ──────────────────────
+                grouped_cols = predictor._group_indicators(indicators_df.columns)
+                indicator_breakdown = {}
+                for cat, cols in grouped_cols.items():
+                    if not cols: continue
+                    cat_data = indicators_df[cols].iloc[-1]
+                    buy = int((cat_data > 0).sum())
+                    sell = int((cat_data < 0).sum())
+                    neutral = int((cat_data == 0).sum())
+                    
+                    signals = {col: int(val) for col, val in cat_data.items() if not np.isnan(val)}
+                    
+                    indicator_breakdown[cat] = {
+                        "buy": buy,
+                        "sell": sell,
+                        "neutral": neutral,
+                        "signals": signals
+                    }
+
                 # ── Append record ─────────────────────────────────────────────────
                 summary.append({
                     "symbol":   symbol,
@@ -379,6 +418,7 @@ if __name__ == "__main__":
                         "volume_surge": _safe(df.get('volume_surge_20', pd.Series([1])).iloc[-1] if 'volume_surge_20' in df else 1),
                         "zscore": _safe(df.get('zscore_20', pd.Series([0])).iloc[-1] if 'zscore_20' in df else 0),
                     },
+                    "indicator_breakdown": indicator_breakdown,
                     "prediction": {
                         "signal": signal_raw, "direction": targets.get('direction', 'LONG'), "confidence": round(confidence, 4),
                         "consensus_score": round(latest_consensus, 4), "bullish_pct": round(bullish_pct, 2), "bearish_pct": round(bearish_pct, 2),

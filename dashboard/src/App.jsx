@@ -62,6 +62,7 @@ const App = () => {
   const [indexType, setIndexType]       = useState('50'); // '50' or '500'
   const [searchQuery, setSearchQuery]   = useState('');
   const [activeFilter, setActiveFilter] = useState('ALL');
+  const [modalCategory, setModalCategory] = useState(null);
   const chartContainerRef               = useRef();
   const chartRef                        = useRef();
 
@@ -199,48 +200,15 @@ const App = () => {
     return matchesSearch && matchesFilter;
   });
 
-  // ── indicator cards config ─────────────────────────────────────────────────
-  const indicatorCards = [
-    { name: 'RSI (14)',       value: fmt(ind.rsi, 1),
-      meaning: ind.rsi > 70 ? 'Overbought' : ind.rsi < 30 ? 'Oversold' : 'Neutral',
-      color:   ind.rsi > 70 ? 'var(--accent-rose)' : ind.rsi < 30 ? 'var(--accent-emerald)' : 'var(--text-secondary)',
-      desc: 'Measures momentum; >70 overbought, <30 oversold.' },
-
-    { name: 'MACD Hist',      value: fmt(ind.macd, 3),
-      meaning: ind.macd > 0 ? 'Bullish momentum' : 'Bearish momentum',
-      color:   ind.macd > 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)',
-      desc: 'Histogram shows divergence between fast and slow EMA.' },
-
-    { name: 'ADX (14)',       value: fmt(ind.adx, 1),
-      meaning: ind.adx > 25 ? 'Strong trend' : 'Weak / no trend',
-      color:   ind.adx > 25 ? 'var(--accent-gold)' : 'var(--text-secondary)',
-      desc: 'Trend strength 0-100; >25 confirms directional move.' },
-
-    { name: 'BB Position',   value: pct(ind.bb_pos),
-      meaning: ind.bb_pos > 0.8 ? 'Near upper band' : ind.bb_pos < 0.2 ? 'Near lower band' : 'Mid-range',
-      color:   ind.bb_pos > 0.8 ? 'var(--accent-rose)' : ind.bb_pos < 0.2 ? 'var(--accent-emerald)' : 'var(--text-secondary)',
-      desc: 'Price position within Bollinger Bands (20,2). >80% = extended up.' },
-
-    { name: 'ATR (14)',       value: `₹${fmt(ind.atr, 1)}`,
-      meaning: ind.atr > ind.atr * 1.5 ? 'High volatility' : 'Normal volatility',
-      color:   'var(--text-secondary)',
-      desc: 'Average True Range — daily expected price swing in rupees.' },
-
-    { name: 'SuperTrend',    value: ind.supertrend > 0 ? 'BUY' : 'SELL',
-      meaning: ind.supertrend > 0 ? 'Price above band' : 'Price below band',
-      color:   ind.supertrend > 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)',
-      desc: 'ATR-based trailing stop; flips on breakout/breakdown.' },
-
-    { name: 'Volume Surge',  value: `${fmt(ind.volume_surge, 2)}x`,
-      meaning: ind.volume_surge > 1.5 ? 'Unusual volume' : 'Normal volume',
-      color:   ind.volume_surge > 1.5 ? 'var(--accent-gold)' : 'var(--text-secondary)',
-      desc: 'Current volume vs 20-day average. >1.5× = institutional interest.' },
-
-    { name: 'Z-Score',       value: fmt(ind.zscore, 2),
-      meaning: Math.abs(ind.zscore) > 2 ? 'Statistically extreme' : 'Within normal range',
-      color:   Math.abs(ind.zscore) > 2 ? 'var(--accent-rose)' : 'var(--text-secondary)',
-      desc: 'Standard deviations from 20-day mean price. |z|>2 = mean-reversion alert.' },
-  ];
+  // ── category names mapping ──────────────────────────────────────────────────
+  const categoryNames = {
+    trend: "Trend Indicators",
+    momentum: "Momentum Indicators",
+    volatility: "Volatility Indicators",
+    volume: "Volume Indicators",
+    price_action: "Price Action & Patterns",
+    other: "Other Indicators"
+  };
 
   return (
     <div className="app-shell">
@@ -531,31 +499,94 @@ const App = () => {
           </div>
 
           {/* ── Technical Indicator Analysis ────────────────────────────────── */}
+          {/* ── Technical Indicator Analysis ────────────────────────────────── */}
           <div className="glass-panel p-6">
             <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:20 }}>
               <Percent size={20} color="var(--accent-gold)" />
-              <h2 style={{ margin:0, fontSize:'1.15rem', fontWeight:700 }}>Technical Indicator Analysis</h2>
+              <h2 style={{ margin:0, fontSize:'1.15rem', fontWeight:700 }}>Technical Indicator Analysis (400+)</h2>
+              <span style={{ marginLeft:'auto', fontSize:'0.78rem', color:'var(--text-secondary)' }}>
+                Click a category for detailed breakdown
+              </span>
             </div>
-            <div className="indicator-details-grid">
-              {indicatorCards.map((ind, i) => (
-                <motion.div key={ind.name}
-                  initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}
-                  transition={{ delay: i * 0.04 }}
-                  className="indicator-card"
-                >
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
-                    <span className="ind-name">{ind.name}</span>
-                    <Pill label={ind.meaning} color={ind.color} />
-                  </div>
-                  <div className="ind-value">{ind.value}</div>
-                  <p className="ind-desc">{ind.desc}</p>
-                </motion.div>
-              ))}
+            
+            <div className="indicator-details-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+              {s?.indicator_breakdown && Object.entries(s.indicator_breakdown).map(([catId, data], i) => {
+                const total = data.buy + data.sell + data.neutral;
+                if (total === 0) return null;
+                
+                const buyPct = (data.buy / total) * 100;
+                const sellPct = (data.sell / total) * 100;
+                
+                return (
+                  <motion.div key={catId}
+                    initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }}
+                    transition={{ delay: i * 0.04 }}
+                    className="indicator-card category-card"
+                    onClick={() => setModalCategory({ id: catId, data })}
+                    style={{ cursor: 'pointer', position: 'relative', overflow: 'hidden' }}
+                  >
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+                      <span className="ind-name">{categoryNames[catId] || catId.toUpperCase()}</span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{total} Ind</span>
+                    </div>
+                    
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: '0.85rem', fontWeight: 600 }}>
+                       <span style={{ color: 'var(--accent-emerald)' }}>Buy: {data.buy}</span>
+                       <span style={{ color: 'var(--accent-rose)' }}>Sell: {data.sell}</span>
+                    </div>
+                    
+                    <div className="mini-progress" style={{ height: 6, background: 'rgba(255,255,255,0.1)', borderRadius: 3, display: 'flex', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${buyPct}%`, background: 'var(--accent-emerald)' }} />
+                      <div style={{ height: '100%', width: `${sellPct}%`, background: 'var(--accent-rose)' }} />
+                    </div>
+                  </motion.div>
+                );
+              })}
             </div>
           </div>
 
         </motion.div>
       </main>
+
+      {/* ── Modal Overlay ────────────────────────────────────────────────────── */}
+      {modalCategory && (
+        <div className="modal-overlay" onClick={() => setModalCategory(null)}>
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }} 
+            animate={{ opacity: 1, scale: 1 }} 
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="modal-content glass-panel" 
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: 16 }}>
+              <h2 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-primary)' }}>
+                {categoryNames[modalCategory.id] || modalCategory.id}
+              </h2>
+              <button onClick={() => setModalCategory(null)} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', fontSize: '1.5rem', padding: '0 8px' }}>&times;</button>
+            </div>
+            
+            <div style={{ display: 'flex', gap: 24, marginBottom: 20, padding: '12px', background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+               <div style={{ color: 'var(--accent-emerald)', fontWeight: 600 }}>▲ Buy: {modalCategory.data.buy}</div>
+               <div style={{ color: 'var(--accent-rose)', fontWeight: 600 }}>▼ Sell: {modalCategory.data.sell}</div>
+               <div style={{ color: 'var(--text-secondary)' }}>■ Neutral: {modalCategory.data.neutral}</div>
+            </div>
+            
+            <div className="modal-signals-list">
+               {Object.entries(modalCategory.data.signals).map(([key, val]) => (
+                  <div key={key} className="signal-row">
+                     <span className="signal-name">{key.replace(/_/g, ' ').toUpperCase()}</span>
+                     <span className="signal-badge" style={{ 
+                        color: val === 1 ? 'var(--accent-emerald)' : val === -1 ? 'var(--accent-rose)' : 'var(--text-secondary)',
+                        background: val === 1 ? 'rgba(16, 185, 129, 0.1)' : val === -1 ? 'rgba(244, 63, 94, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+                      }}>
+                        {val === 1 ? 'BUY' : val === -1 ? 'SELL' : 'NEUTRAL'}
+                     </span>
+                  </div>
+               ))}
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };
