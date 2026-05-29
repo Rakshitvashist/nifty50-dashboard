@@ -88,19 +88,15 @@ def compute_indicators(df):
     supertrend  = np.where(close_s >= lower_band, 1.0, -1.0)
 
     # ── Synthetic binary indicator signals (for ConsensusPredictor) ───────────
+    def _nb(cond): return np.where(cond, 1.0, -1.0)
+
     indicators = pd.DataFrame(index=idx)
+    # Oscillators (extreme zones) -> map True to 1 or -1, False to 0
     indicators['rsi_oversold']       = (rsi < 30).astype(float)
     indicators['rsi_overbought']     = (rsi > 70).astype(float) * -1
     indicators['rsi_mid_bull']       = ((rsi > 50) & (rsi <= 70)).astype(float)
-    indicators['macd_positive']      = (macdhist > 0).astype(float)
-    indicators['macd_cross_above']   = ((macdhist > 0) & (np.roll(macdhist, 1) <= 0)).astype(float)
-    indicators['ema20_above_ema50']  = (ema20 > ema50).astype(float)
-    indicators['ema50_above_ema200'] = (ema50 > ema200).astype(float)
-    indicators['price_above_ema20']  = (C > ema20).astype(float)
-    indicators['price_above_sma20']  = (C > sma20).astype(float)
     indicators['bb_near_lower']      = ((C - bb_lo) / (bb_up - bb_lo + 1e-10) < 0.2).astype(float)
     indicators['bb_near_upper']      = ((C - bb_lo) / (bb_up - bb_lo + 1e-10) > 0.8).astype(float) * -1
-    indicators['adx_strong']         = (adx > 25).astype(float)
     indicators['stoch_oversold']     = (stoch_k < 20).astype(float)
     indicators['stoch_overbought']   = (stoch_k > 80).astype(float) * -1
     indicators['cci_oversold']       = (cci < -100).astype(float)
@@ -109,10 +105,21 @@ def compute_indicators(df):
     indicators['willr_overbought']   = (willr > -20).astype(float) * -1
     indicators['mfi_oversold']       = (mfi < 20).astype(float)
     indicators['mfi_overbought']     = (mfi > 80).astype(float) * -1
-    indicators['roc_positive']       = (roc > 0).astype(float)
+    
+    # Trend/Directional (always -1 or 1 to balance consensus)
+    indicators['macd_positive']      = _nb(macdhist > 0)
+    indicators['ema20_above_ema50']  = _nb(ema20 > ema50)
+    indicators['ema50_above_ema200'] = _nb(ema50 > ema200)
+    indicators['price_above_ema20']  = _nb(C > ema20)
+    indicators['price_above_sma20']  = _nb(C > sma20)
+    indicators['roc_positive']       = _nb(roc > 0)
+    indicators['supertrend_signal']  = _nb(supertrend > 0)
+    indicators['obv_rising']         = _nb(pd.Series(obv, index=idx).diff() > 0)
+    
+    # Momentum confirmations
+    indicators['adx_strong']         = (adx > 25).astype(float)
     indicators['vol_surge_signal']   = (vol_surge > 1.5).astype(float)
-    indicators['supertrend_signal']  = (supertrend > 0).astype(float)
-    indicators['obv_rising']         = (pd.Series(obv, index=idx).diff() > 0).astype(float)
+    indicators['macd_cross_above']   = ((macdhist > 0) & (np.roll(macdhist, 1) <= 0)).astype(float)
     indicators = indicators.fillna(0)
 
     raw = {
@@ -217,8 +224,8 @@ def process_stock(file_path, predictor, target_predictor, backtester):
     signal_raw  = int(latest_pred.get('signal', 0))
     exp_move    = _safe(latest_pred.get('expected_move_pct', 0))
 
-    # Sidebar consensus badge (binary signals mean)
-    consensus_badge = float(indicators_df.iloc[-1].mean())
+    # Sidebar consensus badge (sync with consensus_score)
+    consensus_badge = float(latest_consensus)
 
     # ── Chart history (last 100 days) ─────────────────────────────────────────
     chart_data = []

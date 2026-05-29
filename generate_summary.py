@@ -170,9 +170,7 @@ def generate_summary():
                 })
 
             # ── Consensus from indicator columns (for sidebar badge) ──────────
-            badge_cols = [c for c in df.columns if any(x in c for x in
-                          ['above', 'cross', 'signal', 'supertrend', 'oversold', 'overbought'])]
-            consensus_badge = float(df[badge_cols].iloc[-1].mean()) if badge_cols else 0.0
+            consensus_badge = float(latest_consensus)
 
             # ── Append record ─────────────────────────────────────────────────
             summary.append({
@@ -365,8 +363,7 @@ if __name__ == "__main__":
                         "volume": _safe(row['volume'])
                     })
 
-                badge_cols = [c for c in df.columns if any(x in c for x in ['above', 'cross', 'signal', 'supertrend', 'oversold', 'overbought'])]
-                consensus_badge = float(df[badge_cols].iloc[-1].mean()) if badge_cols else 0.0
+                consensus_badge = float(latest_consensus)
 
                 # ── Append record ─────────────────────────────────────────────────
                 summary.append({
