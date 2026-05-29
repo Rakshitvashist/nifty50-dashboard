@@ -65,6 +65,22 @@ const App = () => {
   const chartContainerRef               = useRef();
   const chartRef                        = useRef();
 
+  // ── filter counts based on search query ─────────────────────────────────────
+  const counts = React.useMemo(() => {
+    let all = 0, buy = 0, sell = 0, neutral = 0;
+    data.forEach(stock => {
+      const matchesSearch = stock.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            (stock.company && stock.company.toLowerCase().includes(searchQuery.toLowerCase()));
+      if (matchesSearch) {
+        all++;
+        if (stock.consensus > 0.2) buy++;
+        else if (stock.consensus < -0.2) sell++;
+        else neutral++;
+      }
+    });
+    return { ALL: all, BUY: buy, SELL: sell, NEUTRAL: neutral };
+  }, [data, searchQuery]);
+
   // ── destroy chart helper ────────────────────────────────────────────────────
   const destroyChart = () => {
     if (chartRef.current) {
@@ -165,21 +181,7 @@ const App = () => {
   const hr = s?.hit_ratio   || {};
   const ind = s?.indicators || {};
 
-  // ── filter counts based on search query ─────────────────────────────────────
-  const counts = React.useMemo(() => {
-    let all = 0, buy = 0, sell = 0, neutral = 0;
-    data.forEach(stock => {
-      const matchesSearch = stock.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            (stock.company && stock.company.toLowerCase().includes(searchQuery.toLowerCase()));
-      if (matchesSearch) {
-        all++;
-        if (stock.consensus > 0.2) buy++;
-        else if (stock.consensus < -0.2) sell++;
-        else neutral++;
-      }
-    });
-    return { ALL: all, BUY: buy, SELL: sell, NEUTRAL: neutral };
-  }, [data, searchQuery]);
+
 
   // ── filter pipeline ────────────────────────────────────────────────────────
   const filteredData = data.filter(stock => {
