@@ -175,15 +175,17 @@ def generate_summary():
             # ── Breakdown for UI Category Cards & Modal ──────────────────────
             grouped_cols = predictor._group_indicators(indicators_df.columns)
             indicator_breakdown = {}
+            def _sig(v):
+                if v > 0: return 1
+                if v < 0: return -1
+                return 0
             for cat, cols in grouped_cols.items():
                 if not cols: continue
                 cat_data = indicators_df[cols].iloc[-1]
-                buy = int((cat_data > 0).sum())
-                sell = int((cat_data < 0).sum())
-                neutral = int((cat_data == 0).sum())
-                
-                signals = {col: int(val) for col, val in cat_data.items() if not np.isnan(val)}
-                
+                signals = {col: _sig(val) for col, val in cat_data.items() if not np.isnan(val)}
+                buy     = sum(1 for v in signals.values() if v == 1)
+                sell    = sum(1 for v in signals.values() if v == -1)
+                neutral = sum(1 for v in signals.values() if v == 0)
                 indicator_breakdown[cat] = {
                     "buy": buy,
                     "sell": sell,
@@ -388,15 +390,17 @@ if __name__ == "__main__":
                 # ── Breakdown for UI Category Cards & Modal ──────────────────────
                 grouped_cols = predictor._group_indicators(indicators_df.columns)
                 indicator_breakdown = {}
+                def _sig(v):
+                    if v > 0: return 1
+                    if v < 0: return -1
+                    return 0
                 for cat, cols in grouped_cols.items():
                     if not cols: continue
                     cat_data = indicators_df[cols].iloc[-1]
-                    buy = int((cat_data > 0).sum())
-                    sell = int((cat_data < 0).sum())
-                    neutral = int((cat_data == 0).sum())
-                    
-                    signals = {col: int(val) for col, val in cat_data.items() if not np.isnan(val)}
-                    
+                    signals = {col: _sig(val) for col, val in cat_data.items() if not np.isnan(val)}
+                    buy     = sum(1 for v in signals.values() if v == 1)
+                    sell    = sum(1 for v in signals.values() if v == -1)
+                    neutral = sum(1 for v in signals.values() if v == 0)
                     indicator_breakdown[cat] = {
                         "buy": buy,
                         "sell": sell,

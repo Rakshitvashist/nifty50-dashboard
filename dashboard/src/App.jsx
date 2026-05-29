@@ -530,14 +530,16 @@ const App = () => {
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{total} Ind</span>
                     </div>
                     
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: '0.85rem', fontWeight: 600 }}>
-                       <span style={{ color: 'var(--accent-emerald)' }}>Buy: {data.buy}</span>
-                       <span style={{ color: 'var(--accent-rose)' }}>Sell: {data.sell}</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: '0.82rem', fontWeight: 600 }}>
+                       <span style={{ color: 'var(--accent-emerald)' }}>▲ {data.buy} Buy</span>
+                       <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>— {data.neutral} Neutral</span>
+                       <span style={{ color: 'var(--accent-rose)' }}>▼ {data.sell} Sell</span>
                     </div>
                     
-                    <div className="mini-progress" style={{ height: 6, background: 'rgba(255,255,255,0.1)', borderRadius: 3, display: 'flex', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${buyPct}%`, background: 'var(--accent-emerald)' }} />
-                      <div style={{ height: '100%', width: `${sellPct}%`, background: 'var(--accent-rose)' }} />
+                    <div className="mini-progress" style={{ height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3, display: 'flex', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${buyPct}%`, background: 'var(--accent-emerald)', transition: 'width 0.4s' }} />
+                      <div style={{ height: '100%', width: `${(data.neutral/total)*100}%`, background: 'rgba(255,255,255,0.15)', transition: 'width 0.4s' }} />
+                      <div style={{ height: '100%', width: `${sellPct}%`, background: 'var(--accent-rose)', transition: 'width 0.4s' }} />
                     </div>
                   </motion.div>
                 );
