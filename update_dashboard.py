@@ -130,8 +130,19 @@ def main():
         else:
             log("Skipping download (--skip-download)", YELLOW)
 
+        banner("STEP 4.5 · Nifty 500 — Compute 400+ Indicators")
+        if not args.skip_indicators:
+            run(["start.py",
+                 "--input",  "nifty500_host",
+                 "--output", "processed_indicators_500"],
+                "Compute 400+ indicators for Nifty 500")
+        else:
+            log("Skipping indicators (--skip-indicators)", YELLOW)
+
         banner("STEP 5 · Nifty 500 — Generate Dashboard JSON")
-        run(["generate_summary_500.py"],
+        run(["generate_summary.py",
+             "--input",  "processed_indicators_500",
+             "--output", "dashboard/public/summary_500.json"],
             "Generate summary_500.json (Nifty 500, all 500 stocks)")
     else:
         log("Skipping Nifty 500 pipeline (--skip-nifty500)", YELLOW)
