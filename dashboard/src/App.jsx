@@ -165,6 +165,22 @@ const App = () => {
   const hr = s?.hit_ratio   || {};
   const ind = s?.indicators || {};
 
+  // ── filter counts based on search query ─────────────────────────────────────
+  const counts = React.useMemo(() => {
+    let all = 0, buy = 0, sell = 0, neutral = 0;
+    data.forEach(stock => {
+      const matchesSearch = stock.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            (stock.company && stock.company.toLowerCase().includes(searchQuery.toLowerCase()));
+      if (matchesSearch) {
+        all++;
+        if (stock.consensus > 0.2) buy++;
+        else if (stock.consensus < -0.2) sell++;
+        else neutral++;
+      }
+    });
+    return { ALL: all, BUY: buy, SELL: sell, NEUTRAL: neutral };
+  }, [data, searchQuery]);
+
   // ── filter pipeline ────────────────────────────────────────────────────────
   const filteredData = data.filter(stock => {
     const matchesSearch = stock.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -280,8 +296,11 @@ const App = () => {
                   className={`filter-btn ${activeFilter === filter ? 'active' : ''} ${filter.toLowerCase()}`}
                   onClick={() => setActiveFilter(filter)}
                 >
-                  <span className="dot" />
-                  {filter}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span className="dot" />
+                    <span>{filter}</span>
+                  </div>
+                  <span className="count-badge">{counts[filter]}</span>
                 </button>
               ))}
             </div>

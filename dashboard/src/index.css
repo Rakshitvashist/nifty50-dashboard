@@ -357,9 +357,9 @@ body {
 .filter-btn {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   gap: 6px;
-  padding: 8px;
+  padding: 8px 12px;
   border: 1px solid var(--panel-border);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.02);
@@ -370,6 +370,7 @@ body {
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   text-transform: uppercase;
+  width: 100%;
 }
 
 .filter-btn:hover {
@@ -424,6 +425,44 @@ body {
 .filter-btn.active.buy .dot { background: var(--accent-emerald); box-shadow: 0 0 6px var(--accent-emerald); }
 .filter-btn.active.sell .dot { background: var(--accent-rose); box-shadow: 0 0 6px var(--accent-rose); }
 .filter-btn.active.neutral .dot { background: var(--text-secondary); box-shadow: 0 0 6px var(--text-secondary); }
+
+/* Dynamic Filter Count Badge */
+.count-badge {
+  font-size: 0.7rem;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-weight: 600;
+  transition: all 0.25s ease;
+  min-width: 20px;
+  text-align: center;
+}
+
+.filter-btn:hover .count-badge {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+.filter-btn.active.all .count-badge {
+  background: rgba(212, 175, 55, 0.15);
+  color: var(--accent-gold);
+}
+
+.filter-btn.active.buy .count-badge {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--accent-emerald);
+}
+
+.filter-btn.active.sell .count-badge {
+  background: rgba(244, 63, 94, 0.15);
+  color: var(--accent-rose);
+}
+
+.filter-btn.active.neutral .count-badge {
+  background: rgba(255, 255, 255, 0.10);
+  color: var(--text-secondary);
+}
 
 /* No items matching filters */
 .no-stocks-found {
